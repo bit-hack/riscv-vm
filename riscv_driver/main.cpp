@@ -219,7 +219,7 @@ int main(int argc, char **args) {
     uint32_t start = 0, end = 0;
     if (elf.get_data_section_range(start, end)) {
       uint32_t value = 0;
-      for (uint32_t i = start; i < end; i += 4) {
+      for (uint32_t i = start; i <= end; i += 4) {
         state->mem.read((uint8_t*)&value, i, 4);
         printf("%08x\n", value);
       }

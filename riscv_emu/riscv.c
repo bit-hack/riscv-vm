@@ -336,13 +336,13 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
     taken = ((int32_t)rv->X[rs1] < (int32_t)rv->X[rs2]);
     break;
   case 5: // BGE
-    taken = ((int32_t)rv->X[rs1] > (int32_t)rv->X[rs2]);
+    taken = ((int32_t)rv->X[rs1] >= (int32_t)rv->X[rs2]);
     break;
   case 6: // BLTU
     taken = (rv->X[rs1] < rv->X[rs2]);
     break;
   case 7: // BGEU
-    taken = (rv->X[rs1] > rv->X[rs2]);
+    taken = (rv->X[rs1] >= rv->X[rs2]);
     break;
   default:
     assert(!"unreachable");
