@@ -105,7 +105,12 @@ int main(int argc, char **args) {
 
   rv_set_pc(rv, 0x00010090);
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 245; ++i) {
+
+    uint32_t pc = 0;
+    rv_get_pc(rv, &pc);
+
+    printf("%08lx\n", pc);
     rv_step(rv);
   }
 

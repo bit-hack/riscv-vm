@@ -185,6 +185,7 @@ static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
 }
 
 static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
+  // i-type decode
   const int32_t  imm    = _dec_itype_imm(inst);
   const uint32_t rd     = _dec_rd(inst);
   const uint32_t rs1    = _dec_rs1(inst);
@@ -229,6 +230,7 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
 
 // add upper immediate to pc
 static void op_auipc(struct riscv_t *rv, uint32_t inst) {
+  // u-type decode
   const uint32_t rd  = _dec_rd(inst);
   const uint32_t val = _dec_utype_imm(inst) + rv->PC;
   rv->X[rd] = val;
@@ -265,7 +267,7 @@ static void op_store(struct riscv_t *rv, uint32_t inst) {
 }
 
 static void op_op(struct riscv_t *rv, uint32_t inst) {
-  // decode
+  // r-type decode
   const uint32_t rd     = _dec_rd(inst);
   const uint32_t funct3 = _dec_funct3(inst);
   const uint32_t rs1    = _dec_rs1(inst);
@@ -317,6 +319,7 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
 }
 
 static void op_lui(struct riscv_t *rv, uint32_t inst) {
+  // u-type decode
   const uint32_t rd = _dec_rd(inst);
   const uint32_t val = _dec_utype_imm(inst);
   rv->X[rd] = val;
@@ -388,8 +391,21 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
 }
 
 static void op_system(struct riscv_t *rv, uint32_t inst) {
-  // ecall
-  // ebreak
+  // i-type decode
+  const uint32_t rd     = _dec_rd(inst);
+  const uint32_t funct3 = _dec_funct3(inst);
+  const uint32_t rs1    = _dec_rs1(inst);
+  const int32_t  imm    = _dec_itype_imm(inst);
+  // dispatch from imm field
+  switch (imm) {
+  case 0: // ECALL
+  case 1: // EBREAK
+    break;
+  default:
+    assert(!"unreachable");
+  }
+  // step over instruction
+  rv->PC += 4;
 }
 
 static const opcode_t opcodes[] = {
@@ -430,4 +446,18 @@ void *rv_userdata(struct riscv_t *rv) {
 
 void rv_set_pc(struct riscv_t *rv, uint32_t pc) {
   rv->PC = pc;
+}
+
+void rv_get_pc(struct riscv_t *rv, uint32_t *out) {
+  assert(out);
+  *out = rv->PC;
+}
+
+void rv_set_reg(struct riscv_t *rv, uint32_t reg, uint32_t in) {
+  rv->X[reg & 0x1f] = in;
+}
+
+void rv_get_reg(struct riscv_t *rv, uint32_t reg, uint32_t *out) {
+  assert(out);
+  *out = rv->X[reg & 0x1f];
 }

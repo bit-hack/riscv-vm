@@ -71,7 +71,13 @@ void rv_step(struct riscv_t *);
 
 void *rv_userdata(struct riscv_t *);
 
-void rv_set_pc(struct riscv_t *, uint32_t pc);
+void rv_set_pc(struct riscv_t *rv, uint32_t pc);
+
+void rv_get_pc(struct riscv_t *rv, uint32_t *out);
+
+void rv_set_reg(struct riscv_t *, uint32_t reg, uint32_t in);
+
+void rv_get_reg(struct riscv_t *, uint32_t reg, uint32_t *out);
 
 #ifdef __cplusplus
 };  // ifdef __cplusplus
