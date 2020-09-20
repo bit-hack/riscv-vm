@@ -50,6 +50,9 @@ typedef void (*riscv_mem_write_w)(struct riscv_t *rv, uint32_t addr, uint32_t da
 typedef void (*riscv_mem_write_s)(struct riscv_t *rv, uint32_t addr, uint16_t data);
 typedef void (*riscv_mem_write_b)(struct riscv_t *rv, uint32_t addr, uint8_t  data);
 
+typedef void(*riscv_on_ecall )(struct riscv_t *rv, uint32_t addr, uint32_t inst);
+typedef void(*riscv_on_ebreak)(struct riscv_t *rv, uint32_t addr, uint32_t inst);
+
 struct riscv_io_t {
   // memory read interface
   riscv_mem_read_w mem_read_w;
@@ -59,6 +62,9 @@ struct riscv_io_t {
   riscv_mem_write_w mem_write_w;
   riscv_mem_write_s mem_write_s;
   riscv_mem_write_b mem_write_b;
+  // system commands
+  riscv_on_ecall on_ecall;
+  riscv_on_ebreak on_ebreak;
 };
 
 struct riscv_t *rv_create(const struct riscv_io_t *io, void *userdata);
