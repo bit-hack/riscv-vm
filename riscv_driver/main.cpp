@@ -53,10 +53,6 @@ void imp_mem_write_b(struct riscv_t *rv, uint32_t addr, uint8_t  data) {
 void imp_on_ecall(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->done = true;
-
-  uint32_t a0 = 0;
-  rv_get_reg(rv, rv_reg_a0, &a0);
-  printf("ecall (a0 = %u)\n", a0);
 }
 
 void imp_on_ebreak(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
@@ -64,51 +60,101 @@ void imp_on_ebreak(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
   s->done = true;
 }
 
-bool load_elf(struct riscv_t *rv, memory_t &mem, file_t &file) {
+// a very minimal ELF parser
+struct elf_t {
 
-  const uint8_t *ptr = file.data();
-  Elf32_Ehdr *hdr = (Elf32_Ehdr*)ptr;
-
-  // check for ELF magic
-  if (hdr->e_ident[0] != 0x7f &&
-      hdr->e_ident[1] != 'E' &&
-      hdr->e_ident[2] != 'L' &&
-      hdr->e_ident[3] != 'F') {
-    return false;
-  }
-  // must be 32bit ELF
-  if (hdr->e_ident[EI_CLASS] != ELFCLASS32) {
-    return false;
-  }
-  // check machine type is RISCV
-  if (hdr->e_machine != EM_RISCV) {
-    return false;
+  elf_t(file_t &file)
+    : _file(file)
+    , _data(_file.data())
+    , _hdr((Elf32_Ehdr*)_data)
+  {
   }
 
-  // set the entry point
-  rv_set_pc(rv, hdr->e_entry);
-
-  // loop over all of the program headers
-  for (int p = 0; p < hdr->e_phnum; ++p) {
-
-    const Elf32_Phdr *phdr = (const Elf32_Phdr*)(ptr + hdr->e_phoff + (p * hdr->e_phentsize));
-
-    if (phdr->p_type != PT_LOAD) {
-      continue;
+  bool is_valid() const {
+    // check for ELF magic
+    if (_hdr->e_ident[0] != 0x7f &&
+        _hdr->e_ident[1] != 'E' &&
+        _hdr->e_ident[2] != 'L' &&
+        _hdr->e_ident[3] != 'F') {
+      return false;
     }
-
-    const int to_copy = std::min(phdr->p_memsz, phdr->p_filesz);
-    mem.write(phdr->p_vaddr, ptr + phdr->p_offset, to_copy);
-
-    const int to_zero = std::max(phdr->p_memsz, phdr->p_filesz) - to_copy;
-    mem.fill(phdr->p_vaddr + to_copy, to_zero, 0);
+    // must be 32bit ELF
+    if (_hdr->e_ident[EI_CLASS] != ELFCLASS32) {
+      return false;
+    }
+    // check machine type is RISCV
+    if (_hdr->e_machine != EM_RISCV) {
+      return false;
+    }
+    // success
+    return true;
   }
 
-  return true;
-}
+  // get section header string table
+  const char *get_sh_string(int index) const {
+    const Elf32_Shdr *shdr = (const Elf32_Shdr*)(_data + _hdr->e_shoff + _hdr->e_shstrndx * _hdr->e_shentsize);
+    return (const char*)(_data + shdr->sh_offset + index);
+  }
+
+  // get a section header
+  const Elf32_Shdr *get_section_header(char *name) const {
+    for (int s = 0; s < _hdr->e_shnum; ++s) {
+      const Elf32_Shdr *shdr = (const Elf32_Shdr*)(_data + _hdr->e_shoff + (s * _hdr->e_shentsize));
+      const char *sname = get_sh_string(shdr->sh_name);
+      if (strcmp(name, sname) == 0) {
+        return shdr;
+      }
+    }
+    return nullptr;
+  }
+
+  // get the load range of a section
+  bool get_data_section_range(uint32_t &start, uint32_t &end) const {
+    const Elf32_Shdr *shdr = get_section_header(".data");
+    if (!shdr) {
+      return false;
+    }
+    if (shdr->sh_type == SHT_NOBITS) {
+      return false;
+    }
+    start = shdr->sh_addr;
+    end = start + shdr->sh_size;
+    return true;
+  }
+
+  bool upload(struct riscv_t *rv, memory_t &mem) const {
+    // set the entry point
+    rv_set_pc(rv, _hdr->e_entry);
+    // loop over all of the program headers
+    for (int p = 0; p < _hdr->e_phnum; ++p) {
+      // find next program header
+      const Elf32_Phdr *phdr = (const Elf32_Phdr*)(_data + _hdr->e_phoff + (p * _hdr->e_phentsize));
+      // check this section should be loaded
+      if (phdr->p_type != PT_LOAD) {
+        continue;
+      }
+      // memcpy required range
+      const int to_copy = std::min(phdr->p_memsz, phdr->p_filesz);
+      if (to_copy) {
+        mem.write(phdr->p_vaddr, _data + phdr->p_offset, to_copy);
+      }
+      // zero fill required range
+      const int to_zero = std::max(phdr->p_memsz, phdr->p_filesz) - to_copy;
+      if (to_zero) {
+        mem.fill(phdr->p_vaddr + to_copy, to_zero, 0);
+      }
+    }
+    // success
+    return true;
+  }
+
+protected:
+  file_t &_file;
+  const uint8_t *_data;
+  Elf32_Ehdr *_hdr;
+};
 
 } // namespace {}
-
 
 int main(int argc, char **args) {
 
@@ -142,8 +188,14 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  if (!load_elf(rv, state->mem, elf_file)) {
-    fprintf(stderr, "Unable to parse ELF file '%s'\n", args[1]);
+  elf_t elf{ elf_file };
+  if (!elf.is_valid()) {
+    fprintf(stderr, "Invalid ELF file '%s'\n", args[1]);
+    return 1;
+  }
+
+  if (!elf.upload(rv, state->mem)) {
+    fprintf(stderr, "Unable to upload ELF file '%s'\n", args[1]);
     return 1;
   }
 
@@ -162,11 +214,16 @@ int main(int argc, char **args) {
     rv_step(rv);
   }
 
-  // print signature
-  std::array<uint32_t, 36> sig;
-  state->mem.read((uint8_t*)sig.data(), 0x00011320, sig.size() * 4);
-  for (const uint32_t d : sig) {
-    printf("%08x\n", d);
+  // print signature (contents of .data section)
+  {
+    uint32_t start = 0, end = 0;
+    if (elf.get_data_section_range(start, end)) {
+      uint32_t value = 0;
+      for (uint32_t i = start; i < end; i += 4) {
+        state->mem.read((uint8_t*)&value, i, 4);
+        printf("%08x\n", value);
+      }
+    }
   }
 
   rv_delete(rv);
