@@ -365,16 +365,20 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1 = _dec_rs1(inst);
   const int32_t imm = _dec_itype_imm(inst);
   // link
-  rv->X[rd] = rv->PC + 4;
+  if (rd) {
+    rv->X[rd] = rv->PC + 4;
+  }
   // jump
-  rv->PC = rv->X[rs1] + imm;
+  rv->PC = (rv->X[rs1] + imm) & ~1u;
 }
 
 static void op_jal(struct riscv_t *rv, uint32_t inst) {
   // j-type decode
   const uint32_t rd = _dec_rd(inst);
   // link
-  rv->X[rd] = rv->PC + 4;
+  if (rd) {
+    rv->X[rd] = rv->PC + 4;
+  }
   const uint32_t rel = _dec_jtype_imm(inst);
   rv->PC += rel;
 }
@@ -397,7 +401,9 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
       assert(!"unreachable");
     }
     break;
+  case 1:
   case 2:
+  case 7:
     // CSRRS (control status register)
     break;
   default:
