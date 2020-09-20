@@ -1,6 +1,6 @@
 #include <memory>
 
-#include "elf/elf32.h"
+#include "elf.h"
 #include "file.h"
 #include "memory.h"
 
