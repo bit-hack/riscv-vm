@@ -52,7 +52,7 @@ struct riscv_t {
   uint32_t PC;
 
   // user provided data
-  void *userdata;
+  riscv_user_t userdata;
 };
 
 // decode rd field
@@ -123,17 +123,6 @@ static int32_t _dec_stype_imm(uint32_t inst) {
   return ((int32_t)dst) >> 20;
 }
 
-struct riscv_t *rv_create(const struct riscv_io_t *io, void *userdata) {
-  struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
-  // copy over the IO interface
-  memcpy(&rv->io, io, sizeof(struct riscv_io_t));
-  // copy over the userdata
-  rv->userdata = userdata;
-  // reset
-  rv_reset(rv);
-  return rv;
-}
-
 // sign extend a 16 bit value
 static uint32_t sign_extend_h(uint32_t x) {
   return (int32_t)((int16_t)x);
@@ -192,35 +181,35 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   const uint32_t funct3 = _dec_funct3(inst);
   // dispatch operation type
   switch (funct3) {
-  case 0b000:   // ADDI
+  case 0: // ADDI
     rv->X[rd] = (int32_t)(rv->X[rs1]) + imm;
     break;
-  case 0b001:   // SLLI
+  case 1: // SLLI
     rv->X[rd] = rv->X[rs1] << (imm & 0x1f);
     break;
-  case 0b010:   // SLTI
+  case 2: // SLTI
     rv->X[rd] = ((int32_t)(rv->X[rs1]) < imm) ? 1 : 0;
     break;
-  case 0b011:   // SLTIU
+  case 3: // SLTIU
     rv->X[rd] = (rv->X[rs1] < (uint32_t)imm) ? 1 : 0;
     break;
-  case 0b100:   // XORI
+  case 4: // XORI
     rv->X[rd] = rv->X[rs1] ^ imm;
     break;
-  case 0b101:   // SRLI / SRAI
-    if (imm == 0) {
-      // SRLI
-      rv->X[rd] = rv->X[rs1] >> (imm & 0x1f);
-    }
-    else {
+  case 5: // SRLI / SRAI
+    if (imm & ~0x1f) {
       // SRAI
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (imm & 0x1f);
     }
+    else {
+      // SRLI
+      rv->X[rd] = rv->X[rs1] >> (imm & 0x1f);
+    }
     break;
-  case 0b110:   // ORI
+  case 6: // ORI
     rv->X[rd] = rv->X[rs1] | imm;
     break;
-  case 0b111:   // ANDI
+  case 7: // ANDI
     rv->X[rd] = rv->X[rs1] & imm;
     break;
   }
@@ -275,7 +264,7 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
   const uint32_t funct7 = _dec_funct7(inst);
   // dispatch by operation type
   switch (funct3) {
-  case 0b000:   // ADD / SUB
+  case 0:   // ADD / SUB
     if (funct7 == 0) {
       // ADD
       rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
@@ -285,19 +274,19 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
     }
     break;
-  case 0b001:   // SLL
+  case 1:   // SLL
     rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
     break;
-  case 0b010:   // SLT
+  case 2:   // SLT
     rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
     break;
-  case 0b011:   // SLTU
+  case 3:   // SLTU
     rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
     break;
-  case 0b100:   // XOR
+  case 4:   // XOR
     rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
     break;
-  case 0b101:   // SRL / SRA
+  case 5:   // SRL / SRA
     if (funct7 == 0) {
       // SRL
       rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
@@ -307,10 +296,10 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
     }
     break;
-  case 0b110:   // OR
+  case 6:   // OR
     rv->X[rd] = rv->X[rs1] | rv->X[rs2];
     break;
-  case 0b111:   // AND
+  case 7:   // AND
     rv->X[rd] = rv->X[rs1] & rv->X[rs2];
     break;
   }
@@ -337,22 +326,22 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
   bool taken = false;
   // dispatch by branch type
   switch (func3) {
-  case 0x0: // BEQ
+  case 0: // BEQ
     taken = (rv->X[rs1] == rv->X[rs2]);
     break;
-  case 0x1: // BNE
+  case 1: // BNE
     taken = (rv->X[rs1] != rv->X[rs2]);
     break;
-  case 0x4: // BLT
+  case 4: // BLT
     taken = ((int32_t)rv->X[rs1] < (int32_t)rv->X[rs2]);
     break;
-  case 0x5: // BGE
+  case 5: // BGE
     taken = ((int32_t)rv->X[rs1] > (int32_t)rv->X[rs2]);
     break;
-  case 0x6: // BLTU
+  case 6: // BLTU
     taken = (rv->X[rs1] < rv->X[rs2]);
     break;
-  case 0x7: // BGEU
+  case 7: // BGEU
     taken = (rv->X[rs1] > rv->X[rs2]);
     break;
   default:
@@ -408,10 +397,22 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   rv->PC += 4;
 }
 
+// opcode dispatch table
 static const opcode_t opcodes[] = {
   op_load, NULL,  NULL, op_misc_mem, op_op_imm, op_auipc, NULL, NULL, op_store,  NULL,    NULL, NULL,   op_op,     op_lui, NULL, NULL,
   NULL,    NULL,  NULL, NULL,        NULL,      NULL,     NULL, NULL, op_branch, op_jalr, NULL, op_jal, op_system, NULL,   NULL, NULL,
 };
+
+struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
+  struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
+  // copy over the IO interface
+  memcpy(&rv->io, io, sizeof(struct riscv_io_t));
+  // copy over the userdata
+  rv->userdata = userdata;
+  // reset
+  rv_reset(rv, 0u);
+  return rv;
+}
 
 void rv_step(struct riscv_t *rv) {
   const uint32_t inst = rv->io.mem_read_w(rv, rv->PC);
@@ -433,14 +434,14 @@ void rv_delete(struct riscv_t *rv) {
   return;
 }
 
-void rv_reset(struct riscv_t *rv) {
+void rv_reset(struct riscv_t *rv, uint32_t pc) {
   memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
   // set the reset address
-  rv->PC = 0x0;
+  rv->PC = pc;
   return;
 }
 
-void *rv_userdata(struct riscv_t *rv) {
+riscv_user_t rv_userdata(struct riscv_t *rv) {
   return rv->userdata;
 }
 

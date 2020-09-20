@@ -65,7 +65,18 @@ bool load_elf(struct riscv_t *rv, memory_t &mem, file_t &file) {
   const uint8_t *ptr = file.data();
   Elf32_Ehdr *hdr = (Elf32_Ehdr*)ptr;
 
-  // check machine type
+  // check for ELF magic
+  if (hdr->e_ident[0] != 0x7f &&
+      hdr->e_ident[1] != 'E' &&
+      hdr->e_ident[2] != 'L' &&
+      hdr->e_ident[3] != 'F') {
+    return false;
+  }
+  // must be 32bit ELF
+  if (hdr->e_ident[EI_CLASS] != ELFCLASS32) {
+    return false;
+  }
+  // check machine type is RISCV
   if (hdr->e_machine != EM_RISCV) {
     return false;
   }

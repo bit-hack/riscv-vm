@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+// riscv register file enums
 enum {
   rv_reg_zero,
   rv_reg_ra,
@@ -41,18 +42,23 @@ enum {
 };
 
 struct riscv_t;
+typedef void *riscv_user_t;
 
+// memory read handlers
 typedef uint32_t (*riscv_mem_read_w)(struct riscv_t *rv, uint32_t addr);
 typedef uint16_t (*riscv_mem_read_s)(struct riscv_t *rv, uint32_t addr);
 typedef uint8_t  (*riscv_mem_read_b)(struct riscv_t *rv, uint32_t addr);
 
+// memory write handlers
 typedef void (*riscv_mem_write_w)(struct riscv_t *rv, uint32_t addr, uint32_t data);
 typedef void (*riscv_mem_write_s)(struct riscv_t *rv, uint32_t addr, uint16_t data);
 typedef void (*riscv_mem_write_b)(struct riscv_t *rv, uint32_t addr, uint8_t  data);
 
+// system instruction handlers
 typedef void(*riscv_on_ecall )(struct riscv_t *rv, uint32_t addr, uint32_t inst);
 typedef void(*riscv_on_ebreak)(struct riscv_t *rv, uint32_t addr, uint32_t inst);
 
+// riscv emulator io interface
 struct riscv_io_t {
   // memory read interface
   riscv_mem_read_w mem_read_w;
@@ -67,22 +73,31 @@ struct riscv_io_t {
   riscv_on_ebreak on_ebreak;
 };
 
-struct riscv_t *rv_create(const struct riscv_io_t *io, void *userdata);
+// create a riscv emulator
+struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata);
 
+// delete a riscv emulator
 void rv_delete(struct riscv_t *);
 
-void rv_reset(struct riscv_t *);
+// reset the riscv processor
+void rv_reset(struct riscv_t *, uint32_t pc);
 
+// single step the riscv emulator
 void rv_step(struct riscv_t *);
 
-void *rv_userdata(struct riscv_t *);
+// get riscv user data bound to an emulator
+riscv_user_t rv_userdata(struct riscv_t *);
 
+// set the program counter of a riscv emulator
 void rv_set_pc(struct riscv_t *rv, uint32_t pc);
 
+// get the program counter of a riscv emulator
 void rv_get_pc(struct riscv_t *rv, uint32_t *out);
 
+// set a register of the riscv emulator
 void rv_set_reg(struct riscv_t *, uint32_t reg, uint32_t in);
 
+// get a register of the riscv emulator
 void rv_get_reg(struct riscv_t *, uint32_t reg, uint32_t *out);
 
 #ifdef __cplusplus
