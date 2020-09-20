@@ -382,13 +382,23 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
 static void op_system(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
   const int32_t imm = _dec_itype_imm(inst);
-  // dispatch from imm field
-  switch (imm) {
-  case 0: // ECALL
-    rv->io.on_ecall(rv, rv->PC, inst);
+  const uint32_t funct3 = _dec_funct3(inst);
+  switch (funct3) {
+  case 0:
+    // dispatch from imm field
+    switch (imm) {
+    case 0: // ECALL
+      rv->io.on_ecall(rv, rv->PC, inst);
+      break;
+    case 1: // EBREAK
+      rv->io.on_ebreak(rv, rv->PC, inst);
+      break;
+    default:
+      assert(!"unreachable");
+    }
     break;
-  case 1: // EBREAK
-    rv->io.on_ebreak(rv, rv->PC, inst);
+  case 2:
+    // CSRRS (control status register)
     break;
   default:
     assert(!"unreachable");

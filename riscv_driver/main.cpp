@@ -53,6 +53,10 @@ void imp_mem_write_b(struct riscv_t *rv, uint32_t addr, uint8_t  data) {
 void imp_on_ecall(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->done = true;
+
+  uint32_t a0 = 0;
+  rv_get_reg(rv, rv_reg_a0, &a0);
+  printf("ecall (a0 = %u)\n", a0);
 }
 
 void imp_on_ebreak(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
@@ -109,11 +113,13 @@ bool load_elf(struct riscv_t *rv, memory_t &mem, file_t &file) {
 int main(int argc, char **args) {
 
   if (argc <= 1) {
+    fprintf(stderr, "Usage: %s program.elf\n", args[0]);
     return 1;
   }
 
   file_t elf_file;
   if (!elf_file.load(args[1])) {
+    fprintf(stderr, "Unable to load ELF file '%s'\n", args[1]);
     return 1;
   }
 
@@ -132,20 +138,35 @@ int main(int argc, char **args) {
 
   riscv_t *rv = rv_create(&io, state.get());
   if (!rv) {
+    fprintf(stderr, "Unable to create riscv emulator\n");
     return 1;
   }
 
   if (!load_elf(rv, state->mem, elf_file)) {
+    fprintf(stderr, "Unable to parse ELF file '%s'\n", args[1]);
     return 1;
   }
 
-  for (int i = 0; !state->done && i < 10000; ++i) {
+  const int max_cycles = 10000;
 
+  for (int i = 0; !state->done && i < max_cycles; ++i) {
+
+#if 0
+    // trace execution
     uint32_t pc = 0;
     rv_get_pc(rv, &pc);
-
     printf("%08lx\n", pc);
+#endif
+
+    // single step instructions
     rv_step(rv);
+  }
+
+  // print signature
+  std::array<uint32_t, 36> sig;
+  state->mem.read((uint8_t*)sig.data(), 0x00011320, sig.size() * 4);
+  for (const uint32_t d : sig) {
+    printf("%08x\n", d);
   }
 
   rv_delete(rv);
