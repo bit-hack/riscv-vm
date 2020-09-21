@@ -8,10 +8,28 @@
 
 #define RV_NUM_REGS 32
 
+// csrs
+enum {
+  // floating point
+  csr_fflags    = 0x001,
+  csr_frm       = 0x002,
+  csr_fcsr      = 0x003,
+  // low words
+  csr_cycle     = 0xC00,
+  csr_time      = 0xC01,
+  csr_instret   = 0xC02,
+  // high words
+  csr_cycleh    = 0xC80,
+  csr_timeh     = 0xC81,
+  csr_instreth  = 0xC82
+};
+
 // instruction opcode decode masks
 enum {
-  inst_4_2 = 0b00000000000000000000000000011100,
-  inst_6_5 = 0b00000000000000000000000001100000,
+  //               .xxxxxx....x.....xxx....x.......
+  inst_4_2     = 0b00000000000000000000000000011100,
+  inst_6_5     = 0b00000000000000000000000001100000,
+  //               .xxxxxx....x.....xxx....x.......
 };
 
 // instruction type decode masks
@@ -46,11 +64,9 @@ enum {
 struct riscv_t {
   // io interface
   struct riscv_io_t io;
-
   // register file
   uint32_t X[RV_NUM_REGS];
   uint32_t PC;
-
   // user provided data
   riscv_user_t userdata;
 };
@@ -93,7 +109,6 @@ static int32_t _dec_jtype_imm(uint32_t inst) {
   dst |= (inst & fj_imm_19_12) << 11;
   dst |= (inst & fj_imm_11)    << 2;
   dst |= (inst & fj_imm_10_1)  >> 9;
-
   // note: shifted to 2nd least significant bit
   return ((int32_t)dst) >> 11;
 }
@@ -110,7 +125,6 @@ static int32_t _dec_btype_imm(uint32_t inst) {
   dst |= (inst & fb_imm_11) << 23;
   dst |= (inst & fb_imm_10_5) >> 1;
   dst |= (inst & fb_imm_4_1) << 12;
-
   // note: shifted to 2nd least significant bit
   return ((int32_t)dst) >> 19;
 }
@@ -196,7 +210,7 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   case 4: // XORI
     rv->X[rd] = rv->X[rs1] ^ imm;
     break;
-  case 5: // SRLI / SRAI
+  case 5:
     if (imm & ~0x1f) {
       // SRAI
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (imm & 0x1f);
@@ -264,7 +278,7 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
   const uint32_t funct7 = _dec_funct7(inst);
   // dispatch by operation type
   switch (funct3) {
-  case 0:   // ADD / SUB
+  case 0:
     if (funct7 == 0) {
       // ADD
       rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
@@ -274,19 +288,19 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
     }
     break;
-  case 1:   // SLL
+  case 1: // SLL
     rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
     break;
-  case 2:   // SLT
+  case 2: // SLT
     rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
     break;
-  case 3:   // SLTU
+  case 3: // SLTU
     rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
     break;
-  case 4:   // XOR
+  case 4: // XOR
     rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
     break;
-  case 5:   // SRL / SRA
+  case 5:
     if (funct7 == 0) {
       // SRL
       rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
@@ -296,10 +310,10 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
     }
     break;
-  case 6:   // OR
+  case 6: // OR
     rv->X[rd] = rv->X[rs1] | rv->X[rs2];
     break;
-  case 7:   // AND
+  case 7: // AND
     rv->X[rd] = rv->X[rs1] & rv->X[rs2];
     break;
   }
@@ -309,7 +323,7 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
 
 static void op_lui(struct riscv_t *rv, uint32_t inst) {
   // u-type decode
-  const uint32_t rd = _dec_rd(inst);
+  const uint32_t rd  = _dec_rd(inst);
   const uint32_t val = _dec_utype_imm(inst);
   rv->X[rd] = val;
   // step over instruction
@@ -347,7 +361,7 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
   default:
     assert(!"unreachable");
   }
-
+  // perform branch action
   if (taken) {
     rv->PC += imm;
     if (rv->PC & 0x3) {
@@ -361,9 +375,9 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
 
 static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
-  const uint32_t rd = _dec_rd(inst);
+  const uint32_t rd  = _dec_rd(inst);
   const uint32_t rs1 = _dec_rs1(inst);
-  const int32_t imm = _dec_itype_imm(inst);
+  const int32_t  imm = _dec_itype_imm(inst);
   // link
   if (rd) {
     rv->X[rd] = rv->PC + 4;
@@ -385,8 +399,11 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
 
 static void op_system(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
-  const int32_t imm = _dec_itype_imm(inst);
+  const int32_t  imm    = _dec_itype_imm(inst);
   const uint32_t funct3 = _dec_funct3(inst);
+  const uint32_t rs1    = _dec_rs1(inst);
+  const uint32_t rd     = _dec_rd(inst);
+  // dispatch by func3 field
   switch (funct3) {
   case 0:
     // dispatch from imm field
@@ -401,10 +418,15 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
       assert(!"unreachable");
     }
     break;
-  case 1:
-  case 2:
-  case 7:
-    // CSRRS (control status register)
+  case 1: // CSRRW    (Atomic Read/Write CSR)
+  case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
+  case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
+    // TODO
+    break;
+  case 5: // CSRRWI
+  case 6: // CSRRSI
+  case 7: // CSRRCI
+    // TODO
     break;
   default:
     assert(!"unreachable");
@@ -439,7 +461,7 @@ void rv_step(struct riscv_t *rv) {
     rv->X[0] = 0;
   }
   else {
-    assert(false);
+    // try to skip over unknown opcode
     rv->PC += 4;
   }
   return;
@@ -471,10 +493,14 @@ void rv_get_pc(struct riscv_t *rv, uint32_t *out) {
 }
 
 void rv_set_reg(struct riscv_t *rv, uint32_t reg, uint32_t in) {
-  rv->X[reg & 0x1f] = in;
+  if (reg < RV_NUM_REGS) {
+    rv->X[reg] = in;
+  }
 }
 
 void rv_get_reg(struct riscv_t *rv, uint32_t reg, uint32_t *out) {
   assert(out);
-  *out = rv->X[reg & 0x1f];
+  if (reg < RV_NUM_REGS) {
+    *out = rv->X[reg];
+  }
 }
