@@ -378,23 +378,27 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = _dec_rd(inst);
   const uint32_t rs1 = _dec_rs1(inst);
   const int32_t  imm = _dec_itype_imm(inst);
-  // link
-  if (rd) {
-    rv->X[rd] = rv->PC + 4;
-  }
+  // compute return address
+  const uint32_t ra = rv->PC + 4;
   // jump
   rv->PC = (rv->X[rs1] + imm) & ~1u;
+  // link
+  if (rd) {
+    rv->X[rd] = ra;
+  }
 }
 
 static void op_jal(struct riscv_t *rv, uint32_t inst) {
   // j-type decode
-  const uint32_t rd = _dec_rd(inst);
+  const uint32_t rd  = _dec_rd(inst);
+  const uint32_t rel = _dec_jtype_imm(inst);
+  // compute return address
+  const uint32_t ra = rv->PC + 4;
+  rv->PC += rel;
   // link
   if (rd) {
-    rv->X[rd] = rv->PC + 4;
+    rv->X[rd] = ra;
   }
-  const uint32_t rel = _dec_jtype_imm(inst);
-  rv->PC += rel;
 }
 
 static void op_system(struct riscv_t *rv, uint32_t inst) {
