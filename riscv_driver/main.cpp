@@ -7,6 +7,13 @@
 #include "../riscv_emu/riscv.h"
 
 
+// emit an instruction trace
+#define DO_TRACE      0
+
+// emit an execution signature
+#define DO_SIGNATURE  1
+
+
 namespace {
 
 struct state_t {
@@ -122,6 +129,41 @@ struct elf_t {
     return true;
   }
 
+  // get the ELF string table
+  const char *get_strtab() const {
+    const Elf32_Shdr *shdr = get_section_header(".strtab");
+    if (!shdr) {
+      return nullptr;
+    }
+    return (const char *)(_data + shdr->sh_offset);
+  }
+
+  // find a symbol entry
+  const Elf32_Sym* get_symbol(const char *name) const {
+    // get the string table
+    const char *strtab = get_strtab();
+    if (!strtab) {
+      return nullptr;
+    }
+    // get the symbol table
+    const Elf32_Shdr *shdr = get_section_header(".symtab");
+    if (!shdr) {
+      return nullptr;
+    }
+    // find symbol table range
+    const Elf32_Sym *sym = (const Elf32_Sym *)(_data + shdr->sh_offset);
+    const Elf32_Sym *end = (const Elf32_Sym *)(_data + shdr->sh_offset + shdr->sh_size);
+    // try to find the symbol
+    for (; sym < end; ++sym) {
+      const char *sym_name = strtab + sym->st_name;
+      if (strcmp(name, sym_name) == 0) {
+        return sym;
+      }
+    }
+    // cant find the symbol
+    return nullptr;
+  }
+
   bool upload(struct riscv_t *rv, memory_t &mem) const {
     // set the entry point
     rv_set_pc(rv, _hdr->e_entry);
@@ -203,7 +245,7 @@ int main(int argc, char **args) {
 
   for (int i = 0; !state->done && i < max_cycles; ++i) {
 
-#if 0
+#if DO_TRACE
     // trace execution
     uint32_t pc = 0;
     rv_get_pc(rv, &pc);
@@ -214,10 +256,16 @@ int main(int argc, char **args) {
     rv_step(rv);
   }
 
+#if DO_SIGNATURE
   // print signature (contents of .data section)
   {
     uint32_t start = 0, end = 0;
     if (elf.get_data_section_range(start, end)) {
+      // try and access the exact signature start
+      if (const Elf32_Sym *sym = elf.get_symbol("begin_signature")) {
+        start = sym->st_value;
+      }
+      // dump the data
       uint32_t value = 0;
       for (uint32_t i = start; i <= end; i += 4) {
         state->mem.read((uint8_t*)&value, i, 4);
@@ -225,6 +273,7 @@ int main(int argc, char **args) {
       }
     }
   }
+#endif
 
   rv_delete(rv);
   return 0;
