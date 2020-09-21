@@ -26,6 +26,7 @@ struct state_t {
   bool done;
 };
 
+// newlib _write syscall handler
 void syscall_write(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
@@ -48,6 +49,7 @@ void syscall_write(struct riscv_t *rv) {
   rv_set_reg(rv, rv_reg_a0, size);
 }
 
+// newlib _exit syscall handler
 void syscall_exit(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
