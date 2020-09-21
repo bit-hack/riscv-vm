@@ -1,3 +1,4 @@
+#include <cstring>
 #include <memory>
 
 #include "elf.h"
@@ -106,7 +107,7 @@ struct elf_t {
   }
 
   // get a section header
-  const Elf32_Shdr *get_section_header(char *name) const {
+  const Elf32_Shdr *get_section_header(const char *name) const {
     for (int s = 0; s < _hdr->e_shnum; ++s) {
       const Elf32_Shdr *shdr = (const Elf32_Shdr*)(_data + _hdr->e_shoff + (s * _hdr->e_shentsize));
       const char *sname = get_sh_string(shdr->sh_name);
@@ -257,7 +258,7 @@ int main(int argc, char **args) {
     if (DO_TRACE) {
       uint32_t pc = 0;
       rv_get_pc(rv, &pc);
-      printf("%08lx\n", pc);
+      printf("%08x\n", pc);
     }
     // single step instructions
     rv_step(rv);
