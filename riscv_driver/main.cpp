@@ -8,14 +8,15 @@
 
 
 // emit an instruction trace
-#define DO_TRACE      0
+static const bool DO_TRACE = false;
 
-// emit an execution signature
-#define DO_SIGNATURE  1
+// emit an execution signature (for compliance testing)
+static const bool DO_SIGNATURE = true;
 
 
 namespace {
 
+// state structure passed to the VM
 struct state_t {
   memory_t mem;
   bool done;
@@ -77,6 +78,7 @@ struct elf_t {
   {
   }
 
+  // check the ELF file header is valid
   bool is_valid() const {
     // check for ELF magic
     if (_hdr->e_ident[0] != 0x7f &&
@@ -164,6 +166,7 @@ struct elf_t {
     return nullptr;
   }
 
+  // load the ELF file into a memory abstraction
   bool upload(struct riscv_t *rv, memory_t &mem) const {
     // set the entry point
     rv_set_pc(rv, _hdr->e_entry);
@@ -205,12 +208,14 @@ int main(int argc, char **args) {
     return 1;
   }
 
+  // load the ELF file into host memory
   file_t elf_file;
   if (!elf_file.load(args[1])) {
     fprintf(stderr, "Unable to load ELF file '%s'\n", args[1]);
     return 1;
   }
 
+  // setup the IO handlers for the VM
   const riscv_io_t io = {
     imp_mem_read_w,
     imp_mem_read_s,
@@ -224,18 +229,21 @@ int main(int argc, char **args) {
 
   auto state = std::make_unique<state_t>();
 
+  // create the VM
   riscv_t *rv = rv_create(&io, state.get());
   if (!rv) {
     fprintf(stderr, "Unable to create riscv emulator\n");
     return 1;
   }
 
+  // check this is a valid ELF file
   elf_t elf{ elf_file };
   if (!elf.is_valid()) {
     fprintf(stderr, "Invalid ELF file '%s'\n", args[1]);
     return 1;
   }
 
+  // upload the ELF file into our memory abstraction
   if (!elf.upload(rv, state->mem)) {
     fprintf(stderr, "Unable to upload ELF file '%s'\n", args[1]);
     return 1;
@@ -243,22 +251,20 @@ int main(int argc, char **args) {
 
   const int max_cycles = 10000;
 
+  // run until we hit max_cycles or flag that we are done
   for (int i = 0; !state->done && i < max_cycles; ++i) {
-
-#if DO_TRACE
     // trace execution
-    uint32_t pc = 0;
-    rv_get_pc(rv, &pc);
-    printf("%08lx\n", pc);
-#endif
-
+    if (DO_TRACE) {
+      uint32_t pc = 0;
+      rv_get_pc(rv, &pc);
+      printf("%08lx\n", pc);
+    }
     // single step instructions
     rv_step(rv);
   }
 
-#if DO_SIGNATURE
-  // print signature (contents of .data section)
-  {
+  // print execution signature
+  if (DO_SIGNATURE) {
     uint32_t start = 0, end = 0;
     if (elf.get_data_section_range(start, end)) {
       // try and access the exact signature start
@@ -273,8 +279,8 @@ int main(int argc, char **args) {
       }
     }
   }
-#endif
 
+  // delete the VM
   rv_delete(rv);
   return 0;
 }
