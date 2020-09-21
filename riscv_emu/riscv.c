@@ -226,6 +226,9 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   case 7: // ANDI
     rv->X[rd] = rv->X[rs1] & imm;
     break;
+  default:
+    assert(!"unreachable");
+    break;
   }
   // step over instruction
   rv->PC += 4;
@@ -315,6 +318,9 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
     break;
   case 7: // AND
     rv->X[rd] = rv->X[rs1] & rv->X[rs2];
+    break;
+  default:
+    assert(!"unreachable");
     break;
   }
   // step over instruction
