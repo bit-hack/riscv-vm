@@ -8,11 +8,14 @@
 #include "../riscv_emu/riscv.h"
 
 
-// emit an instruction trace
-static const bool DO_TRACE = false;
+// any `ecall` should halt the program (for compliance testing)
+static const bool DO_COMPLIANCE_CONFIG = false;
 
 // emit an execution signature (for compliance testing)
-static const bool DO_SIGNATURE = true;
+static const bool DO_SIGNATURE = false;
+
+// emit an instruction trace
+static const bool DO_TRACE = false;
 
 
 namespace {
@@ -23,48 +26,104 @@ struct state_t {
   bool done;
 };
 
-uint32_t imp_mem_read_w(struct riscv_t *rv, uint32_t addr) {
+void syscall_write(struct riscv_t *rv) {
+  // access userdata
+  state_t *s = (state_t*)rv_userdata(rv);
+  // access parameters
+  riscv_word_t handle = 0;
+  riscv_word_t buffer = 0;
+  riscv_word_t count = 0;
+  rv_get_reg(rv, rv_reg_a0, &handle);
+  rv_get_reg(rv, rv_reg_a1, &buffer);
+  rv_get_reg(rv, rv_reg_a2, &count);
+  // read the string that we are printing
+  std::array<char, 128> temp;
+  uint32_t size = std::min(count, (uint32_t)temp.size() - 1);
+  s->mem.read((uint8_t*)temp.data(), buffer, size);
+  // enforce trailing end of string
+  temp[size] = '\0';
+  // print out the string
+  printf(temp.data());
+  // return number of bytes written
+  rv_set_reg(rv, rv_reg_a0, size);
+}
+
+void syscall_exit(struct riscv_t *rv) {
+  // access userdata
+  state_t *s = (state_t*)rv_userdata(rv);
+  s->done = true;
+}
+
+riscv_word_t imp_mem_read_w(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
   uint32_t out = 0;
   s->mem.read((uint8_t*)&out, addr, sizeof(out));
   return out;
 }
 
-uint16_t imp_mem_read_s(struct riscv_t *rv, uint32_t addr) {
+riscv_half_t imp_mem_read_s(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
   uint16_t out = 0;
   s->mem.read((uint8_t*)&out, addr, sizeof(out));
   return out;
 }
 
-uint8_t imp_mem_read_b(struct riscv_t *rv, uint32_t addr) {
+riscv_byte_t imp_mem_read_b(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
   uint8_t out = 0;
   s->mem.read((uint8_t*)&out, addr, sizeof(out));
   return out;
 }
 
-void imp_mem_write_w(struct riscv_t *rv, uint32_t addr, uint32_t data) {
+void imp_mem_write_w(struct riscv_t *rv, riscv_word_t addr, riscv_word_t data) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->mem.write(addr, (uint8_t*)&data, sizeof(data));
 }
 
-void imp_mem_write_s(struct riscv_t *rv, uint32_t addr, uint16_t data) {
+void imp_mem_write_s(struct riscv_t *rv, riscv_word_t addr, riscv_half_t data) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->mem.write(addr, (uint8_t*)&data, sizeof(data));
 }
 
-void imp_mem_write_b(struct riscv_t *rv, uint32_t addr, uint8_t  data) {
+void imp_mem_write_b(struct riscv_t *rv, riscv_word_t addr, riscv_byte_t  data) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->mem.write(addr, (uint8_t*)&data, sizeof(data));
 }
 
-void imp_on_ecall(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
+void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
+  // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
-  s->done = true;
+
+  if (DO_COMPLIANCE_CONFIG) {
+    // in compliance testing it seems any `ecall` should abort
+    s->done = true;
+  }
+
+  // get the syscall number
+  riscv_word_t syscall = 0;
+  rv_get_reg(rv, rv_reg_a7, &syscall);
+  // dispatch call type
+  switch (syscall) {
+  case 57:  // _close
+  case 62:  // _lseek
+  case 63:  // _read
+    break;
+  case 64:  // _write
+    syscall_write(rv);
+    break;
+  case 80:  // _fstat
+  case 214: // _sbrk
+    break;
+  case 93:  // exit
+    syscall_exit(rv);
+    break;
+  default:
+    s->done = true;
+    break;
+  }
 }
 
-void imp_on_ebreak(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
+void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   state_t *s = (state_t*)rv_userdata(rv);
   s->done = true;
 }
@@ -72,28 +131,28 @@ void imp_on_ebreak(struct riscv_t *rv, uint32_t addr, uint32_t inst) {
 // a very minimal ELF parser
 struct elf_t {
 
-  elf_t(file_t &file)
-    : _file(file)
-    , _data(_file.data())
-    , _hdr((Elf32_Ehdr*)_data)
+  elf_t(file_t &elf_file)
+    : file(elf_file)
+    , data(file.data())
+    , hdr((Elf32_Ehdr*)data)
   {
   }
 
   // check the ELF file header is valid
   bool is_valid() const {
     // check for ELF magic
-    if (_hdr->e_ident[0] != 0x7f &&
-        _hdr->e_ident[1] != 'E' &&
-        _hdr->e_ident[2] != 'L' &&
-        _hdr->e_ident[3] != 'F') {
+    if (hdr->e_ident[0] != 0x7f &&
+        hdr->e_ident[1] != 'E' &&
+        hdr->e_ident[2] != 'L' &&
+        hdr->e_ident[3] != 'F') {
       return false;
     }
     // must be 32bit ELF
-    if (_hdr->e_ident[EI_CLASS] != ELFCLASS32) {
+    if (hdr->e_ident[EI_CLASS] != ELFCLASS32) {
       return false;
     }
     // check machine type is RISCV
-    if (_hdr->e_machine != EM_RISCV) {
+    if (hdr->e_machine != EM_RISCV) {
       return false;
     }
     // success
@@ -102,14 +161,14 @@ struct elf_t {
 
   // get section header string table
   const char *get_sh_string(int index) const {
-    const Elf32_Shdr *shdr = (const Elf32_Shdr*)(_data + _hdr->e_shoff + _hdr->e_shstrndx * _hdr->e_shentsize);
-    return (const char*)(_data + shdr->sh_offset + index);
+    const Elf32_Shdr *shdr = (const Elf32_Shdr*)(data + hdr->e_shoff + hdr->e_shstrndx * hdr->e_shentsize);
+    return (const char*)(data + shdr->sh_offset + index);
   }
 
   // get a section header
   const Elf32_Shdr *get_section_header(const char *name) const {
-    for (int s = 0; s < _hdr->e_shnum; ++s) {
-      const Elf32_Shdr *shdr = (const Elf32_Shdr*)(_data + _hdr->e_shoff + (s * _hdr->e_shentsize));
+    for (int s = 0; s < hdr->e_shnum; ++s) {
+      const Elf32_Shdr *shdr = (const Elf32_Shdr*)(data + hdr->e_shoff + (s * hdr->e_shentsize));
       const char *sname = get_sh_string(shdr->sh_name);
       if (strcmp(name, sname) == 0) {
         return shdr;
@@ -138,7 +197,7 @@ struct elf_t {
     if (!shdr) {
       return nullptr;
     }
-    return (const char *)(_data + shdr->sh_offset);
+    return (const char *)(data + shdr->sh_offset);
   }
 
   // find a symbol entry
@@ -154,8 +213,8 @@ struct elf_t {
       return nullptr;
     }
     // find symbol table range
-    const Elf32_Sym *sym = (const Elf32_Sym *)(_data + shdr->sh_offset);
-    const Elf32_Sym *end = (const Elf32_Sym *)(_data + shdr->sh_offset + shdr->sh_size);
+    const Elf32_Sym *sym = (const Elf32_Sym *)(data + shdr->sh_offset);
+    const Elf32_Sym *end = (const Elf32_Sym *)(data + shdr->sh_offset + shdr->sh_size);
     // try to find the symbol
     for (; sym < end; ++sym) {
       const char *sym_name = strtab + sym->st_name;
@@ -170,11 +229,11 @@ struct elf_t {
   // load the ELF file into a memory abstraction
   bool upload(struct riscv_t *rv, memory_t &mem) const {
     // set the entry point
-    rv_set_pc(rv, _hdr->e_entry);
+    rv_set_pc(rv, hdr->e_entry);
     // loop over all of the program headers
-    for (int p = 0; p < _hdr->e_phnum; ++p) {
+    for (int p = 0; p < hdr->e_phnum; ++p) {
       // find next program header
-      const Elf32_Phdr *phdr = (const Elf32_Phdr*)(_data + _hdr->e_phoff + (p * _hdr->e_phentsize));
+      const Elf32_Phdr *phdr = (const Elf32_Phdr*)(data + hdr->e_phoff + (p * hdr->e_phentsize));
       // check this section should be loaded
       if (phdr->p_type != PT_LOAD) {
         continue;
@@ -182,7 +241,7 @@ struct elf_t {
       // memcpy required range
       const int to_copy = std::min(phdr->p_memsz, phdr->p_filesz);
       if (to_copy) {
-        mem.write(phdr->p_vaddr, _data + phdr->p_offset, to_copy);
+        mem.write(phdr->p_vaddr, data + phdr->p_offset, to_copy);
       }
       // zero fill required range
       const int to_zero = std::max(phdr->p_memsz, phdr->p_filesz) - to_copy;
@@ -195,9 +254,9 @@ struct elf_t {
   }
 
 protected:
-  file_t &_file;
-  const uint8_t *_data;
-  Elf32_Ehdr *_hdr;
+  file_t &file;
+  const uint8_t *data;
+  Elf32_Ehdr *hdr;
 };
 
 } // namespace {}
@@ -250,7 +309,7 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  const int max_cycles = 10000;
+  const int max_cycles = 1000000;
 
   // run until we hit max_cycles or flag that we are done
   for (int i = 0; !state->done && i < max_cycles; ++i) {

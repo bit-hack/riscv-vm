@@ -65,8 +65,8 @@ struct riscv_t {
   // io interface
   struct riscv_io_t io;
   // register file
-  uint32_t X[RV_NUM_REGS];
-  uint32_t PC;
+  riscv_word_t X[RV_NUM_REGS];
+  riscv_word_t PC;
   // user provided data
   riscv_user_t userdata;
 };
@@ -103,7 +103,6 @@ static uint32_t _dec_utype_imm(uint32_t inst) {
 
 // decode jtype instruction immediate
 static int32_t _dec_jtype_imm(uint32_t inst) {
-
   uint32_t dst = 0;
   dst |= (inst & fj_imm_20);
   dst |= (inst & fj_imm_19_12) << 11;
@@ -119,7 +118,6 @@ static int32_t _dec_itype_imm(uint32_t inst) {
 }
 
 static int32_t _dec_btype_imm(uint32_t inst) {
-
   uint32_t dst = 0;
   dst |= (inst & fb_imm_12);
   dst |= (inst & fb_imm_11) << 23;
@@ -130,7 +128,6 @@ static int32_t _dec_btype_imm(uint32_t inst) {
 }
 
 static int32_t _dec_stype_imm(uint32_t inst) {
-
   uint32_t dst = 0;
   dst |= (inst & fs_imm_11_5);
   dst |= (inst & fs_imm_4_0) << 13;
@@ -452,6 +449,7 @@ static const opcode_t opcodes[] = {
 };
 
 struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
+  assert(io);
   struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
   // copy over the IO interface
   memcpy(&rv->io, io, sizeof(struct riscv_io_t));
@@ -463,6 +461,7 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
 }
 
 void rv_step(struct riscv_t *rv) {
+  assert(rv);
   const uint32_t inst = rv->io.mem_read_w(rv, rv->PC);
   const uint32_t index = (inst & (inst_4_2 | inst_6_5)) >> 2;
   const opcode_t op = opcodes[index];
@@ -478,11 +477,13 @@ void rv_step(struct riscv_t *rv) {
 }
 
 void rv_delete(struct riscv_t *rv) {
+  assert(rv);
   free(rv);
   return;
 }
 
-void rv_reset(struct riscv_t *rv, uint32_t pc) {
+void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
+  assert(rv);
   memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
   // set the reset address
   rv->PC = pc;
@@ -490,25 +491,30 @@ void rv_reset(struct riscv_t *rv, uint32_t pc) {
 }
 
 riscv_user_t rv_userdata(struct riscv_t *rv) {
+  assert(rv);
   return rv->userdata;
 }
 
-void rv_set_pc(struct riscv_t *rv, uint32_t pc) {
+void rv_set_pc(struct riscv_t *rv, riscv_word_t pc) {
+  assert(rv);
   rv->PC = pc;
 }
 
-void rv_get_pc(struct riscv_t *rv, uint32_t *out) {
+void rv_get_pc(struct riscv_t *rv, riscv_word_t *out) {
+  assert(rv);
   assert(out);
   *out = rv->PC;
 }
 
-void rv_set_reg(struct riscv_t *rv, uint32_t reg, uint32_t in) {
+void rv_set_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t in) {
+  assert(rv);
   if (reg < RV_NUM_REGS) {
     rv->X[reg] = in;
   }
 }
 
-void rv_get_reg(struct riscv_t *rv, uint32_t reg, uint32_t *out) {
+void rv_get_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t *out) {
+  assert(rv);
   assert(out);
   if (reg < RV_NUM_REGS) {
     *out = rv->X[reg];

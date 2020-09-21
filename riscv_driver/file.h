@@ -6,7 +6,7 @@ struct file_t {
 
   bool load(const char *path) {
 
-    if (_data) {
+    if (mem) {
       unload();
     }
 
@@ -16,19 +16,19 @@ struct file_t {
     }
 
     fseek(fd, 0, SEEK_END);
-    _size = ftell(fd);
+    mem_size = ftell(fd);
     fseek(fd, 0, SEEK_SET);
 
-    if (_size == 0) {
+    if (mem_size == 0) {
       fclose(fd);
       return false;
     }
-    _data.reset(new uint8_t[_size]);
+    mem.reset(new uint8_t[mem_size]);
 
-    const size_t read = fread(_data.get(), 1, _size, fd);
+    const size_t read = fread(mem.get(), 1, mem_size, fd);
 
     fclose(fd);
-    if (read != _size) {
+    if (read != mem_size) {
       unload();
       return false;
     }
@@ -37,17 +37,17 @@ struct file_t {
   }
 
   void unload() {
-    if (_data) {
-      _data.reset();
+    if (mem) {
+      mem.reset();
     }
-    _size = 0;
+    mem_size = 0;
   }
 
-  uint8_t *data() const { return _data.get(); }
+  uint8_t *data() const { return mem.get(); }
 
-  size_t size() const { return _size; }
+  size_t size() const { return mem_size; }
 
 protected:
-  std::unique_ptr<uint8_t[]> _data;
-  size_t _size;
+  std::unique_ptr<uint8_t[]> mem;
+  size_t mem_size;
 };
