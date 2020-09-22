@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <memory>
 
 namespace ELF {
 
@@ -143,3 +144,127 @@ struct Elf32_Sym {
 };
 
 }  // namespace ELF
+
+struct memory_t;
+
+// a very minimal ELF parser
+struct elf_t {
+
+  elf_t();
+
+  // load an ELF file from disk
+  bool load(const char *path);
+
+  // release a loaded ELF file
+  void release() {
+    raw_data.reset();
+    raw_size = 0;
+    hdr = nullptr;
+  }
+
+  // check the ELF file header is valid
+  bool is_valid() const {
+    // check for ELF magic
+    if (hdr->e_ident[0] != 0x7f &&
+      hdr->e_ident[1] != 'E' &&
+      hdr->e_ident[2] != 'L' &&
+      hdr->e_ident[3] != 'F') {
+      return false;
+    }
+    // must be 32bit ELF
+    if (hdr->e_ident[ELF::EI_CLASS] != ELF::ELFCLASS32) {
+      return false;
+    }
+    // check machine type is RISCV
+    if (hdr->e_machine != ELF::EM_RISCV) {
+      return false;
+    }
+    // success
+    return true;
+  }
+
+  // get section header string table
+  const char *get_sh_string(int index) const {
+    uint32_t offset = hdr->e_shoff + hdr->e_shstrndx * hdr->e_shentsize;
+    const ELF::Elf32_Shdr *shdr = (const ELF::Elf32_Shdr*)(data() + offset);
+    return (const char*)(data() + shdr->sh_offset + index);
+  }
+
+  // get a section header
+  const ELF::Elf32_Shdr *get_section_header(const char *name) const {
+    for (int s = 0; s < hdr->e_shnum; ++s) {
+      uint32_t offset = hdr->e_shoff + s * hdr->e_shentsize;
+      const ELF::Elf32_Shdr *shdr = (const ELF::Elf32_Shdr*)(data() + offset);
+      const char *sname = get_sh_string(shdr->sh_name);
+      if (strcmp(name, sname) == 0) {
+        return shdr;
+      }
+    }
+    return nullptr;
+  }
+
+  // get the load range of a section
+  bool get_data_section_range(uint32_t &start, uint32_t &end) const {
+    const ELF::Elf32_Shdr *shdr = get_section_header(".data");
+    if (!shdr) {
+      return false;
+    }
+    if (shdr->sh_type == ELF::SHT_NOBITS) {
+      return false;
+    }
+    start = shdr->sh_addr;
+    end = start + shdr->sh_size;
+    return true;
+  }
+
+  // get the ELF string table
+  const char *get_strtab() const {
+    const ELF::Elf32_Shdr *shdr = get_section_header(".strtab");
+    if (!shdr) {
+      return nullptr;
+    }
+    return (const char *)(data() + shdr->sh_offset);
+  }
+
+  // find a symbol entry
+  const ELF::Elf32_Sym* get_symbol(const char *name) const {
+    // get the string table
+    const char *strtab = get_strtab();
+    if (!strtab) {
+      return nullptr;
+    }
+    // get the symbol table
+    const ELF::Elf32_Shdr *shdr = get_section_header(".symtab");
+    if (!shdr) {
+      return nullptr;
+    }
+    // find symbol table range
+    const ELF::Elf32_Sym *sym = (const ELF::Elf32_Sym *)(data() + shdr->sh_offset);
+    const ELF::Elf32_Sym *end = (const ELF::Elf32_Sym *)(data() + shdr->sh_offset + shdr->sh_size);
+    // try to find the symbol
+    for (; sym < end; ++sym) {
+      const char *sym_name = strtab + sym->st_name;
+      if (strcmp(name, sym_name) == 0) {
+        return sym;
+      }
+    }
+    // cant find the symbol
+    return nullptr;
+  }
+
+  // load the ELF file into a memory abstraction
+  bool upload(struct riscv_t *rv, memory_t &mem) const;
+
+  const uint8_t *data() const {
+    return raw_data.get();
+  }
+
+  uint32_t size() const {
+    return raw_size;
+  }
+
+protected:
+  const ELF::Elf32_Ehdr *hdr;
+  uint32_t raw_size;
+  std::unique_ptr<uint8_t[]> raw_data;
+};

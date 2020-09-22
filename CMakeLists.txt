@@ -11,7 +11,7 @@ add_library(riscv_core ${LIB_SRC})
 
 set(DRV_SRC
     "riscv_vm/elf.h"
-    "riscv_vm/file.h"
+    "riscv_vm/elf.cpp"
     "riscv_vm/main.cpp"
     "riscv_vm/memory.h")
 add_executable(riscv_vm ${DRV_SRC})

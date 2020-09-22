@@ -130,137 +130,6 @@ void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   s->done = true;
 }
 
-// a very minimal ELF parser
-struct elf_t {
-
-  elf_t(file_t &elf_file)
-    : file(elf_file)
-    , data(file.data())
-    , hdr((ELF::Elf32_Ehdr*)data)
-  {
-  }
-
-  // check the ELF file header is valid
-  bool is_valid() const {
-    // check for ELF magic
-    if (hdr->e_ident[0] != 0x7f &&
-        hdr->e_ident[1] != 'E' &&
-        hdr->e_ident[2] != 'L' &&
-        hdr->e_ident[3] != 'F') {
-      return false;
-    }
-    // must be 32bit ELF
-    if (hdr->e_ident[ELF::EI_CLASS] != ELF::ELFCLASS32) {
-      return false;
-    }
-    // check machine type is RISCV
-    if (hdr->e_machine != ELF::EM_RISCV) {
-      return false;
-    }
-    // success
-    return true;
-  }
-
-  // get section header string table
-  const char *get_sh_string(int index) const {
-    const ELF::Elf32_Shdr *shdr = (const ELF::Elf32_Shdr*)(data + hdr->e_shoff + hdr->e_shstrndx * hdr->e_shentsize);
-    return (const char*)(data + shdr->sh_offset + index);
-  }
-
-  // get a section header
-  const ELF::Elf32_Shdr *get_section_header(const char *name) const {
-    for (int s = 0; s < hdr->e_shnum; ++s) {
-      const ELF::Elf32_Shdr *shdr = (const ELF::Elf32_Shdr*)(data + hdr->e_shoff + (s * hdr->e_shentsize));
-      const char *sname = get_sh_string(shdr->sh_name);
-      if (strcmp(name, sname) == 0) {
-        return shdr;
-      }
-    }
-    return nullptr;
-  }
-
-  // get the load range of a section
-  bool get_data_section_range(uint32_t &start, uint32_t &end) const {
-    const ELF::Elf32_Shdr *shdr = get_section_header(".data");
-    if (!shdr) {
-      return false;
-    }
-    if (shdr->sh_type == ELF::SHT_NOBITS) {
-      return false;
-    }
-    start = shdr->sh_addr;
-    end = start + shdr->sh_size;
-    return true;
-  }
-
-  // get the ELF string table
-  const char *get_strtab() const {
-    const ELF::Elf32_Shdr *shdr = get_section_header(".strtab");
-    if (!shdr) {
-      return nullptr;
-    }
-    return (const char *)(data + shdr->sh_offset);
-  }
-
-  // find a symbol entry
-  const ELF::Elf32_Sym* get_symbol(const char *name) const {
-    // get the string table
-    const char *strtab = get_strtab();
-    if (!strtab) {
-      return nullptr;
-    }
-    // get the symbol table
-    const ELF::Elf32_Shdr *shdr = get_section_header(".symtab");
-    if (!shdr) {
-      return nullptr;
-    }
-    // find symbol table range
-    const ELF::Elf32_Sym *sym = (const ELF::Elf32_Sym *)(data + shdr->sh_offset);
-    const ELF::Elf32_Sym *end = (const ELF::Elf32_Sym *)(data + shdr->sh_offset + shdr->sh_size);
-    // try to find the symbol
-    for (; sym < end; ++sym) {
-      const char *sym_name = strtab + sym->st_name;
-      if (strcmp(name, sym_name) == 0) {
-        return sym;
-      }
-    }
-    // cant find the symbol
-    return nullptr;
-  }
-
-  // load the ELF file into a memory abstraction
-  bool upload(struct riscv_t *rv, memory_t &mem) const {
-    // set the entry point
-    rv_set_pc(rv, hdr->e_entry);
-    // loop over all of the program headers
-    for (int p = 0; p < hdr->e_phnum; ++p) {
-      // find next program header
-      const ELF::Elf32_Phdr *phdr = (const ELF::Elf32_Phdr*)(data + hdr->e_phoff + (p * hdr->e_phentsize));
-      // check this section should be loaded
-      if (phdr->p_type != ELF::PT_LOAD) {
-        continue;
-      }
-      // memcpy required range
-      const int to_copy = std::min(phdr->p_memsz, phdr->p_filesz);
-      if (to_copy) {
-        mem.write(phdr->p_vaddr, data + phdr->p_offset, to_copy);
-      }
-      // zero fill required range
-      const int to_zero = std::max(phdr->p_memsz, phdr->p_filesz) - to_copy;
-      if (to_zero) {
-        mem.fill(phdr->p_vaddr + to_copy, to_zero, 0);
-      }
-    }
-    // success
-    return true;
-  }
-
-protected:
-  file_t &file;
-  const uint8_t *data;
-  ELF::Elf32_Ehdr *hdr;
-};
-
 } // namespace {}
 
 int main(int argc, char **args) {
@@ -270,9 +139,9 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  // load the ELF file into host memory
-  file_t elf_file;
-  if (!elf_file.load(args[1])) {
+  // load the ELF file from disk
+  elf_t elf;
+  if (!elf.load(args[1])) {
     fprintf(stderr, "Unable to load ELF file '%s'\n", args[1]);
     return 1;
   }
@@ -295,13 +164,6 @@ int main(int argc, char **args) {
   riscv_t *rv = rv_create(&io, state.get());
   if (!rv) {
     fprintf(stderr, "Unable to create riscv emulator\n");
-    return 1;
-  }
-
-  // check this is a valid ELF file
-  elf_t elf{ elf_file };
-  if (!elf.is_valid()) {
-    fprintf(stderr, "Invalid ELF file '%s'\n", args[1]);
     return 1;
   }
 

@@ -9,8 +9,8 @@
 // enable experimental RV32M support
 #define SUPPORT_RV32M 0
 
-
 #define RV_NUM_REGS 32
+
 
 // csrs
 enum {
