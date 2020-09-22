@@ -44,7 +44,7 @@ void syscall_write(struct riscv_t *rv) {
   // enforce trailing end of string
   temp[size] = '\0';
   // print out the string
-  printf(temp.data());
+  printf("%s", temp.data());
   // return number of bytes written
   rv_set_reg(rv, rv_reg_a0, size);
 }
