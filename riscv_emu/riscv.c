@@ -6,6 +6,10 @@
 #include "riscv.h"
 
 
+// enable experimental RV32M support
+#define SUPPORT_RV32M 0
+
+
 #define RV_NUM_REGS 32
 
 // csrs
@@ -276,50 +280,121 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1    = _dec_rs1(inst);
   const uint32_t rs2    = _dec_rs2(inst);
   const uint32_t funct7 = _dec_funct7(inst);
-  // dispatch by operation type
-  switch (funct3) {
-  case 0:
-    if (funct7 == 0) {
-      // ADD
+
+  switch (funct7) {
+  case 0b0000000:
+    switch (funct3) {
+    case 0b000: // ADD
       rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
-    }
-    else {
-      // SUB
-      rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
-    }
-    break;
-  case 1: // SLL
-    rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
-    break;
-  case 2: // SLT
-    rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
-    break;
-  case 3: // SLTU
-    rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
-    break;
-  case 4: // XOR
-    rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
-    break;
-  case 5:
-    if (funct7 == 0) {
-      // SRL
+      break;
+    case 0b001: // SLL
+      rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
+      break;
+    case 0b010: // SLT
+      rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
+      break;
+    case 0b011: // SLTU
+      rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
+      break;
+    case 0b100: // XOR
+      rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
+      break;
+    case 0b101: // SRL
       rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
+      break;
+    case 0b110: // OR
+      rv->X[rd] = rv->X[rs1] | rv->X[rs2];
+      break;
+    case 0b111: // AND
+      rv->X[rd] = rv->X[rs1] & rv->X[rs2];
+      break;
+    default:
+      assert(!"unreachable");
+      break;
     }
-    else {
-      // SRA
+    break;
+#if SUPPORT_RV32M
+  case 0b0000001:
+    // RV32M instructions
+    switch (funct3) {
+    case 0b000: // MUL
+      rv->X[rd] = (int32_t)rv->X[rs1] * (int32_t)rv->X[rs2];
+      break;
+    case 0b001: // MULH
+      {
+        // TODO
+      }
+      break;
+    case 0b010: // MULHSU
+      {
+        // TODO
+      }
+      break;
+    case 0b011: // MULHU
+      rv->X[rd] = ((uint64_t)rv->X[rs1] * (uint64_t)rv->X[rs2]) >> 32;
+      break;
+    case 0b100: // DIV
+      {
+        const int32_t dividend = (int32_t)rv->X[rs1];
+        const int32_t divisor = (int32_t)rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = ~0u;
+        }
+        else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+          rv->X[rd] = rv->X[rs1];
+        }
+        else {
+          rv->X[rd] = dividend / divisor;
+        }
+      }
+      break;
+    case 0b101: // DIVU
+    {
+      const uint32_t dividend = rv->X[rs1];
+      const uint32_t divisor  = rv->X[rs2];
+      if (divisor == 0) {
+        rv->X[rd] = ~0u;
+      }
+      else {
+        rv->X[rd] = dividend / divisor;
+      }
+    }
+    break;
+      break;
+    case 0b110: // REM
+      {
+        // TODO
+      }
+      break;
+    case 0b111: // REMU
+      {
+        // TODO
+      }
+      break;
+    default:
+      assert(!"unreachable");
+      break;
+    }
+    break;
+#endif  // SUPPORT_RV32M
+  case 0b0100000:
+    switch (funct3) {
+    case 0b000:  // SUB
+      rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
+      break;
+    case 0b101:  // SRA
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
+      break;
+    default:
+      assert(!"unreachable");
+      break;
     }
-    break;
-  case 6: // OR
-    rv->X[rd] = rv->X[rs1] | rv->X[rs2];
-    break;
-  case 7: // AND
-    rv->X[rd] = rv->X[rs1] & rv->X[rs2];
     break;
   default:
     assert(!"unreachable");
     break;
   }
+
   // step over instruction
   rv->PC += 4;
 }

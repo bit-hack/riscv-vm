@@ -11,11 +11,12 @@ The key goals of this project is to provide a small emulator for learning about 
 
 ----
 ## Build requirements
+- VisualStudio / GCC
 - CMake 3.0 or above
 
 
 ----
-## Compiling the emulator
+## Compiling the project
 ```
 mkdir build
 cd build
@@ -27,11 +28,21 @@ make
 ----
 ## Executing a basic program
 
-A simple RISC-V program (in `main.c`) can be compiled and executed as follows:
+A simple RISC-V program (i.e. `main.c`) can be compiled and executed as follows:
 ```
 riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 main.c
 riscv_driver a.out
 ```
+
+
+----
+## Notes
+
+- Written referencing the `20191214-draft` Volume I: Unprivileged ISA document
+- RV32IM compliance is actively being worked on
+- Complete RV32G compliance is the end goal
+- Testing is done currently using a private fork of the compliance test suite
+  - As the project develops testing will become a key focus
 
 
 ----
