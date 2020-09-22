@@ -3,15 +3,15 @@
 This is a simple RISCV-V Virtual Machine and instruction set emulator implementing the RV32I processor model.
 
 There are two elements to this project:
-- An ISA emulator written in C which presents a low level API for interfacing.
-- A frontend written in C++ which interfaces the ISA emulator with the rest of the world.
+- An ISA emulator core written in C which presents a low level API for interfacing.
+- The VM frontend written in C++ which interfaces the ISA emulator core with the rest of the world.
 
 The key goals of this project is to provide a small emulator for learning about RISC-V with a simple API for embedding it in other projects.
 
 
 ----
 ## Build requirements
-- VisualStudio / GCC
+- C++ 14 compatable compiler  (VisualStudio 15+, GCC 4.9+)
 - CMake 3.0 or above
 
 
@@ -31,7 +31,7 @@ make
 A simple RISC-V program (i.e. `main.c`) can be compiled and executed as follows:
 ```
 riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 main.c
-riscv_driver a.out
+riscv_vm a.out
 ```
 
 

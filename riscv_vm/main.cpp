@@ -5,7 +5,7 @@
 #include "file.h"
 #include "memory.h"
 
-#include "../riscv_emu/riscv.h"
+#include "../riscv_core/riscv.h"
 
 
 // any `ecall` should halt the program (for compliance testing)
