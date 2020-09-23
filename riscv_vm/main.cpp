@@ -44,7 +44,7 @@ void syscall_write(struct riscv_t *rv) {
   // enforce trailing end of string
   temp[size] = '\0';
   // print out the string
-  printf("%s", temp.data());
+  fprintf(stdout, "%s", temp.data());
   // return number of bytes written
   rv_set_reg(rv, rv_reg_a0, size);
 }
@@ -54,6 +54,10 @@ void syscall_exit(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   s->done = true;
+  // get the exit code
+  riscv_word_t exit_code = 0;
+  rv_get_reg(rv, rv_reg_a0, &exit_code);
+  fprintf(stdout, "inferior exit code %d\n", (int)exit_code);
 }
 
 riscv_word_t imp_mem_read_w(struct riscv_t *rv, riscv_word_t addr) {
