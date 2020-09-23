@@ -18,12 +18,21 @@ static const bool DO_SIGNATURE = false;
 static const bool DO_TRACE = false;
 
 
+// define the valid memory region for sbrk
+enum {
+  sbrk_start = 0x10000000,
+  sbrk_end   = 0x1fffffff,
+};
+
+
 namespace {
 
 // state structure passed to the VM
 struct state_t {
   memory_t mem;
   bool done;
+  // the .data break address
+  riscv_word_t break_addr;
 };
 
 // newlib _write syscall handler
@@ -58,6 +67,28 @@ void syscall_exit(struct riscv_t *rv) {
   riscv_word_t exit_code = 0;
   rv_get_reg(rv, rv_reg_a0, &exit_code);
   fprintf(stdout, "inferior exit code %d\n", (int)exit_code);
+}
+
+// newlib _sbrk syscall handler
+void syscall_sbrk(struct riscv_t *rv) {
+  // access userdata
+  state_t *s = (state_t*)rv_userdata(rv);
+  // get the increment parameter
+  riscv_word_t increment = 0;
+  rv_get_reg(rv, rv_reg_a0, &increment);
+  // increment the break pointer
+  if (increment) {
+    if (increment <= sbrk_start || increment > sbrk_end) {
+      rv_set_reg(rv, rv_reg_a0, s->break_addr);
+      return;
+    }
+  }
+  // return the old break address
+  rv_set_reg(rv, rv_reg_a0, s->break_addr);
+  // store the new break address
+  if (increment) {
+    s->break_addr = increment;
+  }
 }
 
 riscv_word_t imp_mem_read_w(struct riscv_t *rv, riscv_word_t addr) {
@@ -118,12 +149,15 @@ void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
     syscall_write(rv);
     break;
   case 80:  // _fstat
+    break;
   case 214: // _sbrk
+    syscall_sbrk(rv);
     break;
   case 93:  // exit
     syscall_exit(rv);
     break;
   default:
+    fprintf(stderr, "unknown syscall %d\n", int(syscall));
     s->done = true;
     break;
   }
@@ -163,6 +197,7 @@ int main(int argc, char **args) {
   };
 
   auto state = std::make_unique<state_t>();
+  state->break_addr = sbrk_start;
 
   // create the VM
   riscv_t *rv = rv_create(&io, state.get());
