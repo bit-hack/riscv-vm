@@ -6,8 +6,15 @@
 #include "riscv.h"
 
 
-// enable experimental RV32M support
-#define SUPPORT_RV32M 1
+// enable RV32M
+#define SUPPORT_RV32M     1
+// enable RV32 Zicsr
+#define SUPPORT_Zicsr     1
+// enable RV32 Zifencei
+#define SUPPORT_Zifencei  1
+// enable RV32A
+#define SUPPORT_RV32A     1
+
 
 #define RV_NUM_REGS 32
 
@@ -121,6 +128,7 @@ static int32_t _dec_itype_imm(uint32_t inst) {
   return ((int32_t)(inst & fi_imm_11_0)) >> 20;
 }
 
+// decode btype instruction immediate
 static int32_t _dec_btype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fb_imm_12);
@@ -131,6 +139,7 @@ static int32_t _dec_btype_imm(uint32_t inst) {
   return ((int32_t)dst) >> 19;
 }
 
+// decode stype instruction immediate
 static int32_t _dec_stype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fs_imm_11_5);
@@ -148,6 +157,7 @@ static uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
 
+// opcode handler type
 typedef void(*opcode_t)(struct riscv_t *rv, uint32_t inst);
 
 static void op_load(struct riscv_t *rv, uint32_t inst) {
@@ -184,8 +194,10 @@ static void op_load(struct riscv_t *rv, uint32_t inst) {
 }
 
 static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
-  // FENCE
+#if SUPPORT_Zifencei
+  // TODO
   rv->PC += 4;
+#endif  // SUPPORT_Zifencei
 }
 
 static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
@@ -415,7 +427,6 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
     assert(!"unreachable");
     break;
   }
-
   // step over instruction
   rv->PC += 4;
 }
@@ -468,6 +479,7 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
     }
   }
   else {
+    // step over instruction
     rv->PC += 4;
   }
 }
@@ -521,6 +533,7 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
       assert(!"unreachable");
     }
     break;
+#if SUPPORT_Zicsr
   case 1: // CSRRW    (Atomic Read/Write CSR)
   case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
   case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
@@ -531,6 +544,7 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   case 7: // CSRRCI
     // TODO
     break;
+#endif  // SUPPORT_Zicsr
   default:
     assert(!"unreachable");
   }
@@ -538,9 +552,17 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   rv->PC += 4;
 }
 
+static void op_amo(struct riscv_t *rv, uint32_t inst) {
+#if SUPPORT_RV32A
+  // TODO
+#endif  // SUPPORT_RV32A
+  // step over instruction
+  rv->PC += 4;
+}
+
 // opcode dispatch table
 static const opcode_t opcodes[] = {
-  op_load, NULL,  NULL, op_misc_mem, op_op_imm, op_auipc, NULL, NULL, op_store,  NULL,    NULL, NULL,   op_op,     op_lui, NULL, NULL,
+  op_load, NULL,  NULL, op_misc_mem, op_op_imm, op_auipc, NULL, NULL, op_store,  NULL,    NULL, op_amo, op_op,     op_lui, NULL, NULL,
   NULL,    NULL,  NULL, NULL,        NULL,      NULL,     NULL, NULL, op_branch, op_jalr, NULL, op_jal, op_system, NULL,   NULL, NULL,
 };
 
@@ -597,8 +619,7 @@ void rv_set_pc(struct riscv_t *rv, riscv_word_t pc) {
 }
 
 void rv_get_pc(struct riscv_t *rv, riscv_word_t *out) {
-  assert(rv);
-  assert(out);
+  assert(rv && out);
   *out = rv->PC;
 }
 
@@ -610,8 +631,7 @@ void rv_set_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t in) {
 }
 
 void rv_get_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t *out) {
-  assert(rv);
-  assert(out);
+  assert(rv && out);
   if (reg < RV_NUM_REGS) {
     *out = rv->X[reg];
   }
