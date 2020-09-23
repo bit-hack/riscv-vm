@@ -7,7 +7,7 @@
 
 
 // enable experimental RV32M support
-#define SUPPORT_RV32M 0
+#define SUPPORT_RV32M 1
 
 #define RV_NUM_REGS 32
 
@@ -322,12 +322,16 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       break;
     case 0b001: // MULH
       {
-        // TODO
+        const int64_t a = (int32_t)rv->X[rs1];
+        const int64_t b = (int32_t)rv->X[rs2];
+        rv->X[rd] = ((uint64_t)(a * b)) >> 32;
       }
       break;
     case 0b010: // MULHSU
       {
-        // TODO
+        const int64_t a = (int32_t)rv->X[rs1];
+        const uint64_t b = rv->X[rs2];
+        rv->X[rd] = ((uint64_t)(a * b)) >> 32;
       }
       break;
     case 0b011: // MULHU
@@ -363,12 +367,29 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       break;
     case 0b110: // REM
       {
-        // TODO
+        const int32_t dividend = rv->X[rs1];
+        const int32_t divisor = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = dividend;
+        }
+        else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+          rv->X[rd] = 0;
+        }
+        else {
+          rv->X[rd] = dividend % divisor;
+        }
       }
       break;
     case 0b111: // REMU
       {
-        // TODO
+        const uint32_t dividend = rv->X[rs1];
+        const uint32_t divisor = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = dividend;
+        }
+        else {
+          rv->X[rd] = dividend % divisor;
+        }
       }
       break;
     default:
