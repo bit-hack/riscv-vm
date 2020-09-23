@@ -1,6 +1,6 @@
 # RISC-V Virtual Machine
 
-This is a simple RISCV-V Virtual Machine and instruction set emulator implementing the RV32I processor model.
+This is a simple RISCV-V Virtual Machine and instruction set emulator implementing the RV32IM processor model.
 
 There are two elements to this project:
 - An ISA emulator core written in C which presents a low level API for interfacing.
@@ -30,7 +30,7 @@ make
 
 A simple RISC-V program (i.e. `main.c`) can be compiled and executed as follows:
 ```
-riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 main.c
+riscv64-unknown-elf-gcc -march=rv32im -mabi=ilp32 main.c
 riscv_vm a.out
 ```
 
@@ -39,7 +39,6 @@ riscv_vm a.out
 ## Notes
 
 - Written referencing the `20191214-draft` Volume I: Unprivileged ISA document
-- RV32IM compliance is actively being worked on
 - Complete RV32G compliance is the end goal
 - Testing is done currently using a private fork of the compliance test suite
   - As the project develops testing will become a key focus
