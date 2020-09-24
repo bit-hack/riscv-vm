@@ -423,17 +423,16 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
       }
       break;
     case 0b101: // DIVU
-    {
-      const uint32_t dividend = rv->X[rs1];
-      const uint32_t divisor  = rv->X[rs2];
-      if (divisor == 0) {
-        rv->X[rd] = ~0u;
+      {
+        const uint32_t dividend = rv->X[rs1];
+        const uint32_t divisor  = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = ~0u;
+        }
+        else {
+          rv->X[rd] = dividend / divisor;
+        }
       }
-      else {
-        rv->X[rd] = dividend / divisor;
-      }
-    }
-    break;
       break;
     case 0b110: // REM
       {
