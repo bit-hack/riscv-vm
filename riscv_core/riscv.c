@@ -554,7 +554,99 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
 
 static void op_amo(struct riscv_t *rv, uint32_t inst) {
 #if SUPPORT_RV32A
-  // TODO
+  const uint32_t rd     = _dec_rd(inst);
+  const uint32_t rs1    = _dec_rs1(inst);
+  const uint32_t rs2    = _dec_rs2(inst);
+  const uint32_t f7     = _dec_funct7(inst);
+  const uint32_t rl     = (f7 >> 0) & 1;
+  const uint32_t aq     = (f7 >> 1) & 1;
+  const uint32_t funct5 = (f7 >> 2) & 0x1f;
+
+  switch (funct5) {
+  case 0b00010:  // LR.W
+    rv->X[rd] = rv->io.mem_read_w(rv, rv->X[rs1]);
+    // skip registration of the 'reservation set'
+    // TODO: implement me
+    break;
+  case 0b00011:  // SC.W
+    // we assume the 'reservation set' is valid
+    // TODO: implement me
+    rv->io.mem_write_w(rv, rv->X[rs1], rv->X[rs2]);
+    rv->X[rd] = 0;
+    break;
+  case 0b00001:  // AMOSWAP.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      rv->io.mem_write_s(rv, rs1, rv->X[rs2]);
+      break;
+    }
+  case 0b00000:  // AMOADD.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t res = (int32_t)rv->X[rd] + (int32_t)rv->X[rs2];
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b00100:  // AMOXOR.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t res = rv->X[rd] ^ rv->X[rs2];
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b01100:  // AMOAND.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t res = rv->X[rd] & rv->X[rs2];
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b01000:  // AMOOR.W
+  {
+    rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+    const int32_t res = rv->X[rd] | rv->X[rs2];
+    rv->io.mem_write_s(rv, rs1, res);
+    break;
+  }
+  case 0b10000:  // AMOMIN.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t a = rv->X[rd];
+      const int32_t b = rv->X[rs2];
+      const int32_t res = a < b ? a : b;
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b10100:  // AMOMAX.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t a = rv->X[rd];
+      const int32_t b = rv->X[rs2];
+      const int32_t res = a > b ? a : b;
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b11000:  // AMOMINU.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const uint32_t a = rv->X[rd];
+      const uint32_t b = rv->X[rs2];
+      const uint32_t res = a < b ? a : b;
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  case 0b11100:  // AMOMAXU.W
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const uint32_t a = rv->X[rd];
+      const uint32_t b = rv->X[rs2];
+      const uint32_t res = a > b ? a : b;
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
+  default:
+    assert(!"unreachable");
+  }
 #endif  // SUPPORT_RV32A
   // step over instruction
   rv->PC += 4;
