@@ -22,17 +22,17 @@
 // csrs
 enum {
   // floating point
-  csr_fflags    = 0x001,
-  csr_frm       = 0x002,
-  csr_fcsr      = 0x003,
+  CSR_FFLAGS    = 0x001,
+  CSR_FRM       = 0x002,
+  CSR_FCSR      = 0x003,
   // low words
-  csr_cycle     = 0xC00,
-  csr_time      = 0xC01,
-  csr_instret   = 0xC02,
+  CSR_CYCLE     = 0xb00, // 0xC00,
+  CSR_TIME      = 0xC01,
+  CSR_INSTRET   = 0xC02,
   // high words
-  csr_cycleh    = 0xC80,
-  csr_timeh     = 0xC81,
-  csr_instreth  = 0xC82
+  CSR_CYCLEH    = 0xC80,
+  CSR_TIMEH     = 0xC81,
+  CSR_INSTRETH  = 0xC82
 };
 
 // instruction opcode decode masks
@@ -80,40 +80,42 @@ struct riscv_t {
   riscv_word_t PC;
   // user provided data
   riscv_user_t userdata;
+  // 
+  uint64_t csr_cycle;
 };
 
 // decode rd field
-static uint32_t _dec_rd(uint32_t inst) {
+static uint32_t dec_rd(uint32_t inst) {
   return (inst & fr_rd) >> 7;
 }
 
 // decode rs1 field
-static uint32_t _dec_rs1(uint32_t inst) {
+static uint32_t dec_rs1(uint32_t inst) {
   return (inst & fr_rs1) >> 15;
 }
 
 // decode rs2 field
-static uint32_t _dec_rs2(uint32_t inst) {
+static uint32_t dec_rs2(uint32_t inst) {
   return (inst & fr_rs2) >> 20;
 }
 
 // decoded funct3 field
-static uint32_t _dec_funct3(uint32_t inst) {
+static uint32_t dec_funct3(uint32_t inst) {
   return (inst & fr_funct3) >> 12;
 }
 
 // decode funct7 field
-static uint32_t _dec_funct7(uint32_t inst) {
+static uint32_t dec_funct7(uint32_t inst) {
   return (inst & fr_funct7) >> 25;
 }
 
 // decode utype instruction immediate
-static uint32_t _dec_utype_imm(uint32_t inst) {
+static uint32_t dec_utype_imm(uint32_t inst) {
   return inst & fu_imm_31_12;
 }
 
 // decode jtype instruction immediate
-static int32_t _dec_jtype_imm(uint32_t inst) {
+static int32_t dec_jtype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fj_imm_20);
   dst |= (inst & fj_imm_19_12) << 11;
@@ -124,12 +126,17 @@ static int32_t _dec_jtype_imm(uint32_t inst) {
 }
 
 // decode itype instruction immediate
-static int32_t _dec_itype_imm(uint32_t inst) {
+static int32_t dec_itype_imm(uint32_t inst) {
   return ((int32_t)(inst & fi_imm_11_0)) >> 20;
 }
 
+// decode csr instruction immediate (same as itype, zero extend)
+static uint32_t dec_csr(uint32_t inst) {
+  return ((uint32_t)(inst & fi_imm_11_0)) >> 20;
+}
+
 // decode btype instruction immediate
-static int32_t _dec_btype_imm(uint32_t inst) {
+static int32_t dec_btype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fb_imm_12);
   dst |= (inst & fb_imm_11) << 23;
@@ -140,7 +147,7 @@ static int32_t _dec_btype_imm(uint32_t inst) {
 }
 
 // decode stype instruction immediate
-static int32_t _dec_stype_imm(uint32_t inst) {
+static int32_t dec_stype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fs_imm_11_5);
   dst |= (inst & fs_imm_4_0) << 13;
@@ -157,15 +164,66 @@ static uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
 
+// get a pointer to a CSR
+static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
+  switch (csr) {
+  case CSR_CYCLE:
+    return (uint32_t*)(&rv->csr_cycle) + 0;
+  case CSR_CYCLEH:
+    return (uint32_t*)(&rv->csr_cycle) + 1;
+  default:
+    return NULL;
+  }
+}
+
+static bool csr_is_writable(uint32_t csr) {
+  switch (csr) {
+  case CSR_CYCLE:
+  case CSR_CYCLEH:
+  default:
+    return false;
+  }
+}
+
+// perform csrrw
+static uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c = val;
+  }
+  return out;
+}
+
+// perform csrrs (atomic read and set)
+static uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c |= val;
+  }
+  return out;
+}
+
+// perform csrrc (atomic read and clear)
+static uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c &= ~val;
+  }
+  return out;
+}
+
 // opcode handler type
 typedef void(*opcode_t)(struct riscv_t *rv, uint32_t inst);
 
 static void op_load(struct riscv_t *rv, uint32_t inst) {
   // itype format
-  const int32_t  imm    = _dec_itype_imm(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t funct3 = _dec_funct3(inst);
-  const uint32_t rd     = _dec_rd(inst);
+  const int32_t  imm    = dec_itype_imm(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t funct3 = dec_funct3(inst);
+  const uint32_t rd     = dec_rd(inst);
   // load address
   const uint32_t addr = rv->X[rs1] + imm;
   // dispatch by read size
@@ -202,10 +260,10 @@ static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
 
 static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
-  const int32_t  imm    = _dec_itype_imm(inst);
-  const uint32_t rd     = _dec_rd(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t funct3 = _dec_funct3(inst);
+  const int32_t  imm    = dec_itype_imm(inst);
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t funct3 = dec_funct3(inst);
   // dispatch operation type
   switch (funct3) {
   case 0: // ADDI
@@ -250,8 +308,8 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
 // add upper immediate to pc
 static void op_auipc(struct riscv_t *rv, uint32_t inst) {
   // u-type decode
-  const uint32_t rd  = _dec_rd(inst);
-  const uint32_t val = _dec_utype_imm(inst) + rv->PC;
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t val = dec_utype_imm(inst) + rv->PC;
   rv->X[rd] = val;
   // step over instruction
   rv->PC += 4;
@@ -259,10 +317,10 @@ static void op_auipc(struct riscv_t *rv, uint32_t inst) {
 
 static void op_store(struct riscv_t *rv, uint32_t inst) {
   // s-type format
-  const int32_t  imm    = _dec_stype_imm(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t rs2    = _dec_rs2(inst);
-  const uint32_t funct3 = _dec_funct3(inst);
+  const int32_t  imm    = dec_stype_imm(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t funct3 = dec_funct3(inst);
   // store address
   const uint32_t addr = rv->X[rs1] + imm;
   const uint32_t data = rv->X[rs2];
@@ -287,11 +345,11 @@ static void op_store(struct riscv_t *rv, uint32_t inst) {
 
 static void op_op(struct riscv_t *rv, uint32_t inst) {
   // r-type decode
-  const uint32_t rd     = _dec_rd(inst);
-  const uint32_t funct3 = _dec_funct3(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t rs2    = _dec_rs2(inst);
-  const uint32_t funct7 = _dec_funct7(inst);
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t funct3 = dec_funct3(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t funct7 = dec_funct7(inst);
 
   switch (funct7) {
   case 0b0000000:
@@ -433,8 +491,8 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
 
 static void op_lui(struct riscv_t *rv, uint32_t inst) {
   // u-type decode
-  const uint32_t rd  = _dec_rd(inst);
-  const uint32_t val = _dec_utype_imm(inst);
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t val = dec_utype_imm(inst);
   rv->X[rd] = val;
   // step over instruction
   rv->PC += 4;
@@ -442,10 +500,10 @@ static void op_lui(struct riscv_t *rv, uint32_t inst) {
 
 static void op_branch(struct riscv_t *rv, uint32_t inst) {
   // b-type decode
-  const uint32_t func3 = _dec_funct3(inst);
-  const int32_t  imm   = _dec_btype_imm(inst);
-  const uint32_t rs1   = _dec_rs1(inst);
-  const uint32_t rs2   = _dec_rs2(inst);
+  const uint32_t func3 = dec_funct3(inst);
+  const int32_t  imm   = dec_btype_imm(inst);
+  const uint32_t rs1   = dec_rs1(inst);
+  const uint32_t rs2   = dec_rs2(inst);
   // track if branch is taken or not
   bool taken = false;
   // dispatch by branch type
@@ -486,9 +544,9 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
 
 static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
-  const uint32_t rd  = _dec_rd(inst);
-  const uint32_t rs1 = _dec_rs1(inst);
-  const int32_t  imm = _dec_itype_imm(inst);
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rs1 = dec_rs1(inst);
+  const int32_t  imm = dec_itype_imm(inst);
   // compute return address
   const uint32_t ra = rv->PC + 4;
   // jump
@@ -501,8 +559,8 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
 
 static void op_jal(struct riscv_t *rv, uint32_t inst) {
   // j-type decode
-  const uint32_t rd  = _dec_rd(inst);
-  const uint32_t rel = _dec_jtype_imm(inst);
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rel = dec_jtype_imm(inst);
   // compute return address
   const uint32_t ra = rv->PC + 4;
   rv->PC += rel;
@@ -514,10 +572,11 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
 
 static void op_system(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
-  const int32_t  imm    = _dec_itype_imm(inst);
-  const uint32_t funct3 = _dec_funct3(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t rd     = _dec_rd(inst);
+  const int32_t  imm    = dec_itype_imm(inst);
+  const int32_t  csr    = dec_csr(inst);
+  const uint32_t funct3 = dec_funct3(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rd     = dec_rd(inst);
   // dispatch by func3 field
   switch (funct3) {
   case 0:
@@ -535,9 +594,13 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
     break;
 #if SUPPORT_Zicsr
   case 1: // CSRRW    (Atomic Read/Write CSR)
+    rv->X[rd] = csr_csrrw(rv, csr, rs1);
+    break;
   case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
+    rv->X[rd] = csr_csrrs(rv, csr, rs1);
+    break;
   case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
-    // TODO
+    rv->X[rd] = csr_csrrc(rv, csr, rs1);
     break;
   case 5: // CSRRWI
   case 6: // CSRRSI
@@ -554,10 +617,10 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
 
 static void op_amo(struct riscv_t *rv, uint32_t inst) {
 #if SUPPORT_RV32A
-  const uint32_t rd     = _dec_rd(inst);
-  const uint32_t rs1    = _dec_rs1(inst);
-  const uint32_t rs2    = _dec_rs2(inst);
-  const uint32_t f7     = _dec_funct7(inst);
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t f7     = dec_funct7(inst);
   const uint32_t rl     = (f7 >> 0) & 1;
   const uint32_t aq     = (f7 >> 1) & 1;
   const uint32_t funct5 = (f7 >> 2) & 0x1f;
@@ -602,12 +665,12 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
       break;
     }
   case 0b01000:  // AMOOR.W
-  {
-    rv->X[rd] = rv->io.mem_read_w(rv, rs1);
-    const int32_t res = rv->X[rd] | rv->X[rs2];
-    rv->io.mem_write_s(rv, rs1, res);
-    break;
-  }
+    {
+      rv->X[rd] = rv->io.mem_read_w(rv, rs1);
+      const int32_t res = rv->X[rd] | rv->X[rs2];
+      rv->io.mem_write_s(rv, rs1, res);
+      break;
+    }
   case 0b10000:  // AMOMIN.W
     {
       rv->X[rd] = rv->io.mem_read_w(rv, rs1);
@@ -683,7 +746,8 @@ void rv_step(struct riscv_t *rv) {
     // try to skip over unknown opcode
     rv->PC += 4;
   }
-  return;
+  // increment the cycles csr
+  rv->csr_cycle++;
 }
 
 void rv_delete(struct riscv_t *rv) {
@@ -697,6 +761,8 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
   // set the reset address
   rv->PC = pc;
+  // reset the csrs
+  rv->csr_cycle = 0;
   return;
 }
 
