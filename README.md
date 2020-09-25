@@ -10,6 +10,11 @@ The key goals of this project is to provide a small emulator for learning about 
 
 
 ----
+## Build Status
+[![Build Status](https://travis-ci.org/bit-hack/riscv-vm.svg?branch=master)](https://travis-ci.org/bit-hack/riscv-vm)
+
+
+----
 ## Build requirements
 - C++ 14 compatable compiler  (VisualStudio 15+, GCC 4.9+)
 - CMake 3.0 or above
