@@ -135,7 +135,8 @@ void syscall_gettimeofday(struct riscv_t *rv) {
     s->mem.write(tv + 8, (const uint8_t*)&tv_usec, 4);
   }
   if (tz) {
-    // TODO
+    // note: This param is currently ignored by the syscall handler in newlib so it
+    //       would be useless to do anything here.
   }
   // success
   rv_set_reg(rv, rv_reg_a0, 0);
