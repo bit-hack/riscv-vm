@@ -2,10 +2,10 @@ language: cpp
 compiler:
   - gcc
   - clang
-  - scan-build
 
 script:
   - mkdir build
   - cd build
   - cmake ..
   - make
+  
