@@ -12,6 +12,7 @@ The key goals of this project is to provide a small emulator for learning about 
 ----
 ## Build Status
 [![Build Status](https://travis-ci.org/bit-hack/riscv-vm.svg?branch=master)](https://travis-ci.org/bit-hack/riscv-vm)
+[![Build status](https://ci.appveyor.com/api/projects/status/sxu9jv014g179mus/branch/master?svg=true)](https://ci.appveyor.com/project/8BitPimp/riscv-vm/branch/master)
 
 
 ----
