@@ -128,9 +128,11 @@ void syscall_gettimeofday(struct riscv_t *rv) {
   if (tv) {
     clock_t t = clock();
     int32_t tv_sec = t / CLOCKS_PER_SEC;
-    int32_t tv_usec = 0;
-    s->mem.write(tv + 0, (const uint8_t*)&tv_sec, 4);
-    s->mem.write(tv + 4, (const uint8_t*)&tv_usec, 4);
+    int32_t tv_usec = (t % CLOCKS_PER_SEC) * (1000000 / CLOCKS_PER_SEC);
+    s->mem.write(tv + 0, (const uint8_t*)&tv_sec,  4);
+    // note: I thought this was offset 4 (tv_sec is a long) but looking at the asm
+    //       its at offset 8.  Even though it does just issue an lw to read it.
+    s->mem.write(tv + 8, (const uint8_t*)&tv_usec, 4);
   }
   if (tz) {
     // TODO
