@@ -6,6 +6,7 @@
 #include "memory.h"
 
 #include "../riscv_core/riscv.h"
+#include "state.h"
 
 
 // any `ecall` should halt the program (for compliance testing)
@@ -18,78 +19,10 @@ static const bool DO_SIGNATURE = false;
 static const bool DO_TRACE = false;
 
 
-// define the valid memory region for sbrk
-enum {
-  sbrk_start = 0x10000000,
-  sbrk_end   = 0x1fffffff,
-};
-
+// main syscall handler
+void syscall_handler(struct riscv_t *);
 
 namespace {
-
-// state structure passed to the VM
-struct state_t {
-  memory_t mem;
-  bool done;
-  // the .data break address
-  riscv_word_t break_addr;
-};
-
-// newlib _write syscall handler
-void syscall_write(struct riscv_t *rv) {
-  // access userdata
-  state_t *s = (state_t*)rv_userdata(rv);
-  // access parameters
-  riscv_word_t handle = 0;
-  riscv_word_t buffer = 0;
-  riscv_word_t count = 0;
-  rv_get_reg(rv, rv_reg_a0, &handle);
-  rv_get_reg(rv, rv_reg_a1, &buffer);
-  rv_get_reg(rv, rv_reg_a2, &count);
-  // read the string that we are printing
-  std::array<char, 128> temp;
-  uint32_t size = std::min(count, (uint32_t)temp.size() - 1);
-  s->mem.read((uint8_t*)temp.data(), buffer, size);
-  // enforce trailing end of string
-  temp[size] = '\0';
-  // print out the string
-  fprintf(stdout, "%s", temp.data());
-  // return number of bytes written
-  rv_set_reg(rv, rv_reg_a0, size);
-}
-
-// newlib _exit syscall handler
-void syscall_exit(struct riscv_t *rv) {
-  // access userdata
-  state_t *s = (state_t*)rv_userdata(rv);
-  s->done = true;
-  // get the exit code
-  riscv_word_t exit_code = 0;
-  rv_get_reg(rv, rv_reg_a0, &exit_code);
-  fprintf(stdout, "inferior exit code %d\n", (int)exit_code);
-}
-
-// newlib _sbrk syscall handler
-void syscall_sbrk(struct riscv_t *rv) {
-  // access userdata
-  state_t *s = (state_t*)rv_userdata(rv);
-  // get the increment parameter
-  riscv_word_t increment = 0;
-  rv_get_reg(rv, rv_reg_a0, &increment);
-  // increment the break pointer
-  if (increment) {
-    if (increment <= sbrk_start || increment > sbrk_end) {
-      rv_set_reg(rv, rv_reg_a0, s->break_addr);
-      return;
-    }
-  }
-  // return the old break address
-  rv_set_reg(rv, rv_reg_a0, s->break_addr);
-  // store the new break address
-  if (increment) {
-    s->break_addr = increment;
-  }
-}
 
 riscv_word_t imp_mem_read_w(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
@@ -130,37 +63,12 @@ void imp_mem_write_b(struct riscv_t *rv, riscv_word_t addr, riscv_byte_t  data) 
 void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
-
+  // in compliance testing it seems any `ecall` should abort
   if (DO_COMPLIANCE_CONFIG) {
-    // in compliance testing it seems any `ecall` should abort
     s->done = true;
   }
-
-  // get the syscall number
-  riscv_word_t syscall = 0;
-  rv_get_reg(rv, rv_reg_a7, &syscall);
-  // dispatch call type
-  switch (syscall) {
-  case 57:  // _close
-  case 62:  // _lseek
-  case 63:  // _read
-    break;
-  case 64:  // _write
-    syscall_write(rv);
-    break;
-  case 80:  // _fstat
-    break;
-  case 214: // _sbrk
-    syscall_sbrk(rv);
-    break;
-  case 93:  // exit
-    syscall_exit(rv);
-    break;
-  default:
-    fprintf(stderr, "unknown syscall %d\n", int(syscall));
-    s->done = true;
-    break;
-  }
+  // pass to the syscall handler
+  syscall_handler(rv);
 }
 
 void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
@@ -212,10 +120,11 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  const int max_cycles = 1000000;
+  const uint32_t max_cycles = ~0u;
 
   // run until we hit max_cycles or flag that we are done
-  for (int i = 0; !state->done && i < max_cycles; ++i) {
+  uint32_t cycles = 0;
+  for (; !state->done && cycles < max_cycles; ++cycles) {
     // trace execution
     if (DO_TRACE) {
       uint32_t pc = 0;
