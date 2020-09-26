@@ -3,6 +3,8 @@
 #include <cstring>
 
 #include <memory>
+#include <map>
+
 
 namespace ELF {
 
@@ -94,6 +96,19 @@ enum {
   PT_PHDR = 6,
   PT_TLS = 7,
 };
+
+enum {
+  STT_NOTYPE = 0,
+  STT_OBJECT = 1,
+  STT_FUNC = 2,
+  STT_SECTION = 3,
+  STT_FILE = 4,
+  STT_COMMON = 5,
+  STT_TLS = 6,
+};
+
+#define ELF_ST_BIND(x) ((x) >> 4)
+#define ELF_ST_TYPE(x) (((unsigned int) x) & 0xf)
 
 struct Elf32_Ehdr {
   uint8_t e_ident[EI_NIDENT];
@@ -265,8 +280,22 @@ struct elf_t {
     return raw_size;
   }
 
+  const char * find_symbol(uint32_t addr) {
+    if (symbols.empty()) {
+      fill_symbols();
+    }
+    auto itt = symbols.find(addr);
+    return (itt == symbols.end()) ? nullptr : itt->second;
+  }
+
 protected:
+
+  void fill_symbols();
+
   const ELF::Elf32_Ehdr *hdr;
   uint32_t raw_size;
   std::unique_ptr<uint8_t[]> raw_data;
+
+  // symbol table map
+  std::map<uint32_t, const char *> symbols;
 };

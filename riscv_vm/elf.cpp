@@ -78,3 +78,32 @@ bool elf_t::load(const char *path) {
   // success
   return true;
 }
+
+void elf_t::fill_symbols() {
+  // init the symbol table
+  symbols.clear();
+  symbols[0] = "NULL";
+  // get the string table
+  const char *strtab = get_strtab();
+  if (!strtab) {
+    return;
+  }
+  // get the symbol table
+  const ELF::Elf32_Shdr *shdr = get_section_header(".symtab");
+  if (!shdr) {
+    return;
+  }
+  // find symbol table range
+  const ELF::Elf32_Sym *sym = (const ELF::Elf32_Sym *)(data() + shdr->sh_offset);
+  const ELF::Elf32_Sym *end = (const ELF::Elf32_Sym *)(data() + shdr->sh_offset + shdr->sh_size);
+  // try to find the symbol
+  for (; sym < end; ++sym) {
+    const char *sym_name = strtab + sym->st_name;
+    // add to the symbol table
+    switch (ELF_ST_TYPE(sym->st_info)) {
+    case ELF::STT_OBJECT:
+    case ELF::STT_FUNC:
+      symbols[uint32_t(sym->st_value)] = sym_name;
+    }
+  }
+}

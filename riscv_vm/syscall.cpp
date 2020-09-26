@@ -93,26 +93,21 @@ void syscall_exit(struct riscv_t *rv) {
   fprintf(stdout, "inferior exit code %d\n", (int)code);
 }
 
-// newlib _sbrk syscall handler
-void syscall_sbrk(struct riscv_t *rv) {
+// newlib _brk syscall handler
+void syscall_brk(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // get the increment parameter
   riscv_word_t increment = 0;
   rv_get_reg(rv, rv_reg_a0, &increment);
-  // increment the break pointer
-  if (increment) {
-    if (increment <= sbrk_start || increment > sbrk_end) {
-      rv_set_reg(rv, rv_reg_a0, s->break_addr);
-      return;
-    }
-  }
-  // return the old break address
-  rv_set_reg(rv, rv_reg_a0, s->break_addr);
-  // store the new break address
+  // note: this doesnt seem to be how it should operate but checking the
+  //       syscall source this is what it expects.
+  //       the return value doesnt seem to be documented this way.
   if (increment) {
     s->break_addr = increment;
   }
+  // return new break address
+  rv_set_reg(rv, rv_reg_a0, s->break_addr);
 }
 
 // newlib _gettimeofday syscall handler
@@ -206,7 +201,7 @@ void syscall_handler(struct riscv_t *rv) {
     syscall_fstat(rv);
     break;
   case SYS_brk:
-    syscall_sbrk(rv);
+    syscall_brk(rv);
     break;
   case SYS_exit:
     syscall_exit(rv);

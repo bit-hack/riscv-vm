@@ -105,7 +105,12 @@ int main(int argc, char **args) {
   };
 
   auto state = std::make_unique<state_t>();
-  state->break_addr = sbrk_start;
+  state->break_addr = 0;
+
+  // find the start of the heap
+  if (const ELF::Elf32_Sym *end = elf.get_symbol("_end")) {
+    state->break_addr = end->st_value;
+  }
 
   // create the VM
   riscv_t *rv = rv_create(&io, state.get());
@@ -129,7 +134,8 @@ int main(int argc, char **args) {
     if (DO_TRACE) {
       uint32_t pc = 0;
       rv_get_pc(rv, &pc);
-      printf("%08x\n", pc);
+      const char *sym = elf.find_symbol(pc);
+      printf("%08x  %s\n", pc, (sym ? sym : ""));
     }
     // single step instructions
     rv_step(rv);
