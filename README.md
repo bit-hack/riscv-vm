@@ -54,7 +54,7 @@ riscv_vm a.out
 ## Newlib support
 
 There is rudimentary support for target programs that make use of the newlib library.
-Currently a number syscalls have been implemented via the `ecall` instruction.
+Currently a number of syscalls have been implemented via the `ecall` instruction.
 This is just enough to run a number of simpler programs and do some basic file io operations.
 
 Try the following example program:
