@@ -80,42 +80,44 @@ struct riscv_t {
   riscv_word_t PC;
   // user provided data
   riscv_user_t userdata;
+  // exception status
+  riscv_exception_t exception;
   // 
   uint64_t csr_cycle;
 };
 
 // decode rd field
-static uint32_t dec_rd(uint32_t inst) {
+static inline uint32_t dec_rd(uint32_t inst) {
   return (inst & fr_rd) >> 7;
 }
 
 // decode rs1 field
-static uint32_t dec_rs1(uint32_t inst) {
+static inline uint32_t dec_rs1(uint32_t inst) {
   return (inst & fr_rs1) >> 15;
 }
 
 // decode rs2 field
-static uint32_t dec_rs2(uint32_t inst) {
+static inline uint32_t dec_rs2(uint32_t inst) {
   return (inst & fr_rs2) >> 20;
 }
 
 // decoded funct3 field
-static uint32_t dec_funct3(uint32_t inst) {
+static inline uint32_t dec_funct3(uint32_t inst) {
   return (inst & fr_funct3) >> 12;
 }
 
 // decode funct7 field
-static uint32_t dec_funct7(uint32_t inst) {
+static inline uint32_t dec_funct7(uint32_t inst) {
   return (inst & fr_funct7) >> 25;
 }
 
 // decode utype instruction immediate
-static uint32_t dec_utype_imm(uint32_t inst) {
+static inline uint32_t dec_utype_imm(uint32_t inst) {
   return inst & fu_imm_31_12;
 }
 
 // decode jtype instruction immediate
-static int32_t dec_jtype_imm(uint32_t inst) {
+static inline int32_t dec_jtype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fj_imm_20);
   dst |= (inst & fj_imm_19_12) << 11;
@@ -126,17 +128,17 @@ static int32_t dec_jtype_imm(uint32_t inst) {
 }
 
 // decode itype instruction immediate
-static int32_t dec_itype_imm(uint32_t inst) {
+static inline int32_t dec_itype_imm(uint32_t inst) {
   return ((int32_t)(inst & fi_imm_11_0)) >> 20;
 }
 
 // decode csr instruction immediate (same as itype, zero extend)
-static uint32_t dec_csr(uint32_t inst) {
+static inline uint32_t dec_csr(uint32_t inst) {
   return ((uint32_t)(inst & fi_imm_11_0)) >> 20;
 }
 
 // decode btype instruction immediate
-static int32_t dec_btype_imm(uint32_t inst) {
+static inline int32_t dec_btype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fb_imm_12);
   dst |= (inst & fb_imm_11) << 23;
@@ -147,7 +149,7 @@ static int32_t dec_btype_imm(uint32_t inst) {
 }
 
 // decode stype instruction immediate
-static int32_t dec_stype_imm(uint32_t inst) {
+static inline int32_t dec_stype_imm(uint32_t inst) {
   uint32_t dst = 0;
   dst |= (inst & fs_imm_11_5);
   dst |= (inst & fs_imm_4_0) << 13;
@@ -155,12 +157,12 @@ static int32_t dec_stype_imm(uint32_t inst) {
 }
 
 // sign extend a 16 bit value
-static uint32_t sign_extend_h(uint32_t x) {
+static inline uint32_t sign_extend_h(uint32_t x) {
   return (int32_t)((int16_t)x);
 }
 
 // sign extend an 8 bit value
-static uint32_t sign_extend_b(uint32_t x) {
+static inline uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
 
@@ -213,6 +215,11 @@ static uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
     *c &= ~val;
   }
   return out;
+}
+
+// raise an exception in the processor
+static inline void raise_exception(struct riscv_t *rv, uint32_t type) {
+  rv->exception = type;
 }
 
 // opcode handler type
@@ -303,6 +310,10 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 // add upper immediate to pc
@@ -313,6 +324,10 @@ static void op_auipc(struct riscv_t *rv, uint32_t inst) {
   rv->X[rd] = val;
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 static void op_store(struct riscv_t *rv, uint32_t inst) {
@@ -486,6 +501,10 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 static void op_lui(struct riscv_t *rv, uint32_t inst) {
@@ -495,6 +514,10 @@ static void op_lui(struct riscv_t *rv, uint32_t inst) {
   rv->X[rd] = val;
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 static void op_branch(struct riscv_t *rv, uint32_t inst) {
@@ -532,7 +555,7 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
   if (taken) {
     rv->PC += imm;
     if (rv->PC & 0x3) {
-      // raise instruction-address-missaligned exception
+      raise_exception(rv, rv_except_inst_misaligned);
     }
   }
   else {
@@ -551,8 +574,12 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   // jump
   rv->PC = (rv->X[rs1] + imm) & ~1u;
   // link
-  if (rd) {
+  if (rd != rv_reg_zero) {
     rv->X[rd] = ra;
+  }
+  // check for exception
+  if (rv->PC & 0x3) {
+    raise_exception(rv, rv_except_inst_misaligned);
   }
 }
 
@@ -564,8 +591,12 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
   const uint32_t ra = rv->PC + 4;
   rv->PC += rel;
   // link
-  if (rd) {
+  if (rd != rv_reg_zero) {
     rv->X[rd] = ra;
+  }
+  // check alignment of PC
+  if (rv->PC & 0x3) {
+    raise_exception(rv, rv_except_inst_misaligned);
   }
 }
 
@@ -612,6 +643,10 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 static void op_amo(struct riscv_t *rv, uint32_t inst) {
@@ -712,6 +747,10 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
 #endif  // SUPPORT_RV32A
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 // opcode dispatch table
@@ -732,21 +771,19 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   return rv;
 }
 
-void rv_step(struct riscv_t *rv) {
+void rv_step(struct riscv_t *rv, uint32_t cycles) {
   assert(rv);
-  const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
-  const uint32_t index = (inst & (inst_4_2 | inst_6_5)) >> 2;
-  const opcode_t op = opcodes[index];
-  if (op) {
+  while (cycles-- && !rv->exception) {
+    // fetch the next instruction
+    const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
+    const uint32_t index = (inst & (inst_4_2 | inst_6_5)) >> 2;
+    // dispatch this opcode
+    const opcode_t op = opcodes[index];
+    assert(op);
     op(rv, inst);
-    rv->X[0] = 0;
+    // increment the cycles csr
+    rv->csr_cycle++;
   }
-  else {
-    // try to skip over unknown opcode
-    rv->PC += 4;
-  }
-  // increment the cycles csr
-  rv->csr_cycle++;
 }
 
 void rv_delete(struct riscv_t *rv) {
@@ -760,6 +797,8 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
   // set the reset address
   rv->PC = pc;
+  // reset exception state
+  rv->exception = rv_except_none;
   // reset the csrs
   rv->csr_cycle = 0;
   return;
@@ -770,9 +809,13 @@ riscv_user_t rv_userdata(struct riscv_t *rv) {
   return rv->userdata;
 }
 
-void rv_set_pc(struct riscv_t *rv, riscv_word_t pc) {
+bool rv_set_pc(struct riscv_t *rv, riscv_word_t pc) {
   assert(rv);
+  if (pc & 3) {
+    return false;
+  }
   rv->PC = pc;
+  return true;
 }
 
 riscv_word_t rv_get_pc(struct riscv_t *rv) {
@@ -782,7 +825,7 @@ riscv_word_t rv_get_pc(struct riscv_t *rv) {
 
 void rv_set_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t in) {
   assert(rv);
-  if (reg < RV_NUM_REGS) {
+  if (reg < RV_NUM_REGS && reg != rv_reg_zero) {
     rv->X[reg] = in;
   }
 }
@@ -793,4 +836,8 @@ riscv_word_t rv_get_reg(struct riscv_t *rv, uint32_t reg) {
     return rv->X[reg];
   }
   return ~0u;
+}
+
+riscv_exception_t rv_get_exception(struct riscv_t *rv) {
+  return rv->exception;
 }

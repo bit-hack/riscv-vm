@@ -128,19 +128,16 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  const uint32_t max_cycles = ~0u;
-
-  // run until we hit max_cycles or flag that we are done
-  uint32_t cycles = 0;
-  for (; !state->done && cycles < max_cycles; ++cycles) {
+  // run until we see the flag that we are done
+  for (; !state->done;) {
     // trace execution
     if (DO_TRACE) {
       uint32_t pc = rv_get_pc(rv);
       const char *sym = elf.find_symbol(pc);
       printf("%08x  %s\n", pc, (sym ? sym : ""));
     }
-    // single step instructions
-    rv_step(rv);
+    // step instructions
+    rv_step(rv, 100);
   }
 
   // print execution signature

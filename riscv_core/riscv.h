@@ -41,12 +41,18 @@ enum {
   rv_reg_t6,
 };
 
+enum {
+  rv_except_none = 0,
+  rv_except_inst_misaligned = 1,
+};
+
 struct riscv_t;
 typedef void *riscv_user_t;
 
 typedef uint32_t riscv_word_t;
 typedef uint16_t riscv_half_t;
 typedef uint8_t  riscv_byte_t;
+typedef uint32_t riscv_exception_t;
 
 // memory read handlers
 typedef riscv_word_t (*riscv_mem_ifetch)(struct riscv_t *rv, riscv_word_t addr);
@@ -88,14 +94,14 @@ void rv_delete(struct riscv_t *);
 // reset the riscv processor
 void rv_reset(struct riscv_t *, riscv_word_t pc);
 
-// single step the riscv emulator
-void rv_step(struct riscv_t *);
+// step the riscv emulator
+void rv_step(struct riscv_t *, uint32_t cycles);
 
 // get riscv user data bound to an emulator
 riscv_user_t rv_userdata(struct riscv_t *);
 
 // set the program counter of a riscv emulator
-void rv_set_pc(struct riscv_t *rv, riscv_word_t pc);
+bool rv_set_pc(struct riscv_t *rv, riscv_word_t pc);
 
 // get the program counter of a riscv emulator
 riscv_word_t rv_get_pc(struct riscv_t *rv);
@@ -105,6 +111,9 @@ void rv_set_reg(struct riscv_t *, uint32_t reg, riscv_word_t in);
 
 // get a register of the riscv emulator
 riscv_word_t rv_get_reg(struct riscv_t *, uint32_t reg);
+
+// return any exception asserted
+riscv_exception_t rv_get_exception(struct riscv_t *);
 
 #ifdef __cplusplus
 };  // ifdef __cplusplus
