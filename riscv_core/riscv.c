@@ -734,7 +734,7 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
 
 void rv_step(struct riscv_t *rv) {
   assert(rv);
-  const uint32_t inst = rv->io.mem_read_w(rv, rv->PC);
+  const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
   const uint32_t index = (inst & (inst_4_2 | inst_6_5)) >> 2;
   const opcode_t op = opcodes[index];
   if (op) {

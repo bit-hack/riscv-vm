@@ -24,25 +24,24 @@ void syscall_handler(struct riscv_t *);
 
 namespace {
 
+riscv_word_t imp_mem_ifetch(struct riscv_t *rv, riscv_word_t addr) {
+  state_t *s = (state_t*)rv_userdata(rv);
+  return s->mem.read_ifetch(addr);
+}
+
 riscv_word_t imp_mem_read_w(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
-  uint32_t out = 0;
-  s->mem.read((uint8_t*)&out, addr, sizeof(out));
-  return out;
+  return s->mem.read_w(addr);
 }
 
 riscv_half_t imp_mem_read_s(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
-  uint16_t out = 0;
-  s->mem.read((uint8_t*)&out, addr, sizeof(out));
-  return out;
+  return s->mem.read_s(addr);
 }
 
 riscv_byte_t imp_mem_read_b(struct riscv_t *rv, riscv_word_t addr) {
   state_t *s = (state_t*)rv_userdata(rv);
-  uint8_t out = 0;
-  s->mem.read((uint8_t*)&out, addr, sizeof(out));
-  return out;
+  return s->mem.read_b(addr);
 }
 
 void imp_mem_write_w(struct riscv_t *rv, riscv_word_t addr, riscv_word_t data) {
@@ -94,6 +93,7 @@ int main(int argc, char **args) {
 
   // setup the IO handlers for the VM
   const riscv_io_t io = {
+    imp_mem_ifetch,
     imp_mem_read_w,
     imp_mem_read_s,
     imp_mem_read_b,

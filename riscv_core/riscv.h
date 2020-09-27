@@ -49,6 +49,7 @@ typedef uint16_t riscv_half_t;
 typedef uint8_t  riscv_byte_t;
 
 // memory read handlers
+typedef riscv_word_t (*riscv_mem_ifetch)(struct riscv_t *rv, riscv_word_t addr);
 typedef riscv_word_t (*riscv_mem_read_w)(struct riscv_t *rv, riscv_word_t addr);
 typedef riscv_half_t (*riscv_mem_read_s)(struct riscv_t *rv, riscv_word_t addr);
 typedef riscv_byte_t (*riscv_mem_read_b)(struct riscv_t *rv, riscv_word_t addr);
@@ -65,6 +66,7 @@ typedef void (*riscv_on_ebreak)(struct riscv_t *rv, riscv_word_t addr, uint32_t 
 // riscv emulator io interface
 struct riscv_io_t {
   // memory read interface
+  riscv_mem_ifetch mem_ifetch;
   riscv_mem_read_w mem_read_w;
   riscv_mem_read_s mem_read_s;
   riscv_mem_read_b mem_read_b;
