@@ -1,4 +1,6 @@
 #pragma once
+#include <map>
+#include <stdio.h>
 
 #include "../riscv_core/riscv.h"
 
@@ -10,4 +12,6 @@ struct state_t {
   bool done;
   // the data segment break address
   riscv_word_t break_addr;
+  // file descriptor map
+  std::map<int, FILE *> fd_map;
 };

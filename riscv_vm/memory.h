@@ -17,6 +17,22 @@ struct memory_t {
     clear();
   }
 
+  uint32_t read_str(uint8_t *dst, uint32_t addr, uint32_t max) {
+    uint32_t len = 0;
+    const uint8_t *end = dst + max;
+    for (;; ++len, ++dst) {
+      uint8_t ch = 0;
+      read(&ch, addr + len, 1);
+      if (dst < end) {
+        *dst = ch;
+      }
+      if (ch == 0) {
+        break;
+      }
+    }
+    return len + 1;
+  }
+
   void read(uint8_t *dst, uint32_t addr, uint32_t size) {
     for (uint32_t i=0; i<size; ++i) {
       uint32_t p = addr + i;

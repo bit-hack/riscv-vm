@@ -106,6 +106,9 @@ int main(int argc, char **args) {
 
   auto state = std::make_unique<state_t>();
   state->break_addr = 0;
+  state->fd_map[0] = stdin;
+  state->fd_map[1] = stdout;
+  state->fd_map[2] = stderr;
 
   // find the start of the heap
   if (const ELF::Elf32_Sym *end = elf.get_symbol("_end")) {

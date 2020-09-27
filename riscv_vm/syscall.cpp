@@ -49,6 +49,19 @@ enum {
   SYS_getmainvars = 2011,
 };
 
+namespace {
+
+int find_free_fd(struct state_t *s) {
+  for (int i = 3; ; ++i) {
+    auto itt = s->fd_map.find(i);
+    if (s->fd_map.end() == itt) {
+      return i;
+    }
+  }
+}
+
+}  // namespace
+
 void syscall_write(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
@@ -57,13 +70,17 @@ void syscall_write(struct riscv_t *rv) {
   riscv_word_t buffer = rv_get_reg(rv, rv_reg_a1);
   riscv_word_t count  = rv_get_reg(rv, rv_reg_a2);
   // read the string that we are printing
-  std::array<char, 128> temp;
+  std::array<char, 256> temp;
   uint32_t size = std::min(count, (uint32_t)temp.size() - 1);
   s->mem.read((uint8_t*)temp.data(), buffer, size);
   // enforce trailing end of string
   temp[size] = '\0';
-  // print out the string
-  fprintf(stdout, "%s", temp.data());
+  // lookup the file descriptor
+  auto itt = s->fd_map.find(int(handle));
+  if (itt != s->fd_map.end()) {
+    // write out the data
+    fwrite(temp.data(), 1, size, itt->second);
+  }
   // return number of bytes written
   rv_set_reg(rv, rv_reg_a0, size);
 }
@@ -121,6 +138,16 @@ void syscall_close(struct riscv_t *rv) {
   state_t *s = (state_t*)rv_userdata(rv);
   // _close(fd);
   uint32_t fd = rv_get_reg(rv, rv_reg_a0);
+  // lookup the file descriptor in question
+  if (fd >= 3) {
+    auto itt = s->fd_map.find(int(fd));
+    if (itt != s->fd_map.end()) {
+      fclose(itt->second);
+      s->fd_map.erase(itt);
+      // success
+      rv_set_reg(rv, rv_reg_a0, 0);
+    }
+  }
   // success
   rv_set_reg(rv, rv_reg_a0, 0);
 }
@@ -151,8 +178,30 @@ void syscall_fstat(struct riscv_t *rv) {
 void syscall_open(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
-  // TODO
-
+  // _open(name, flags, mode);
+  uint32_t name  = rv_get_reg(rv, rv_reg_a0);
+  uint32_t flags = rv_get_reg(rv, rv_reg_a1);
+  uint32_t mode  = rv_get_reg(rv, rv_reg_a2);
+  // read name from VM memory
+  std::array<char, 256> name_str = { '\0' };
+  uint32_t read = s->mem.read_str((uint8_t*)name_str.data(), name, uint32_t(name_str.size()));
+  if (read > name_str.size()) {
+    rv_set_reg(rv, rv_reg_a0, -1);
+    return;
+  }
+  // try to open the file
+  // TODO decode mode
+  FILE *handle = fopen((const char *)name_str.data(), "wb");
+  if (!handle) {
+    rv_set_reg(rv, rv_reg_a0, -1);
+    return;
+  }
+  // find a free file descriptor
+  const int fd = find_free_fd(s);
+  // insert into the file descriptor map
+  s->fd_map[fd] = handle;
+  // return the file descriptor
+  rv_set_reg(rv, rv_reg_a0, fd);
 }
 
 void syscall_handler(struct riscv_t *rv) {
