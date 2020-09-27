@@ -100,7 +100,7 @@ void syscall_write(struct riscv_t *rv) {
   auto itt = s->fd_map.find(int(handle));
   if (itt != s->fd_map.end()) {
     // write out the data
-    fwrite(temp.data(), 1, size, itt->second);
+    size = (uint32_t)fwrite(temp.data(), 1, size, itt->second);
   }
   // return number of bytes written
   rv_set_reg(rv, rv_reg_a0, size);
@@ -176,7 +176,28 @@ void syscall_close(struct riscv_t *rv) {
 void syscall_lseek(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
-  // TODO
+  // _lseek(fd, offset, whence);
+  uint32_t fd     = rv_get_reg(rv, rv_reg_a0);
+  uint32_t offset = rv_get_reg(rv, rv_reg_a1);
+  uint32_t whence = rv_get_reg(rv, rv_reg_a2);
+  // find the file descriptor
+  auto itt = s->fd_map.find(int(fd));
+  if (itt == s->fd_map.end()) {
+    // error
+    rv_set_reg(rv, rv_reg_a0, -1);
+    return;
+  }
+  FILE *handle = itt->second;
+  // perform the seek
+  // note: the whence defines seems somewhat portable and doesnt require some
+  //       kind of mapping.
+  if (fseek(handle, offset, whence)) {
+    // error
+    rv_set_reg(rv, rv_reg_a0, -1);
+    return;
+  }
+  // success
+  rv_set_reg(rv, rv_reg_a0, 0);
 }
 
 void syscall_read(struct riscv_t *rv) {
