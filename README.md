@@ -50,6 +50,7 @@ riscv_vm a.out
 - Complete RV32G compliance is the end goal
 - Testing is done currently using a private fork of the compliance test suite
   - As the project develops testing will become a key focus
+- It is enough that it can run doom, see [here](https://github.com/bit-hack/riscv-vm/tree/aidan/doom).
 
 
 ----
