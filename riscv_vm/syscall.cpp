@@ -56,6 +56,8 @@ enum {
   O_ACCMODE = 3,
 };
 
+void syscall_DG_DrawFrame(struct riscv_t *rv);
+
 namespace {
 
 int find_free_fd(struct state_t *s) {
@@ -295,6 +297,9 @@ void syscall_handler(struct riscv_t *rv) {
     break;
   case SYS_open:
     syscall_open(rv);
+    break;
+  case 0xbeef:
+    syscall_DG_DrawFrame(rv);
     break;
   default:
     fprintf(stderr, "unknown syscall %d\n", int(syscall));

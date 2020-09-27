@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.0)
 project(riscv)
 set(CMAKE_CXX_STANDARD 14)
 
+find_package(SDL REQUIRED)
+
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+include_directories(${SDL_INCLUDE_DIR})
 
 set(LIB_SRC
     "riscv_core/riscv.c"
@@ -16,7 +19,8 @@ set(DRV_SRC
     "riscv_vm/main.cpp"
     "riscv_vm/memory.h"
     "riscv_vm/syscall.cpp"
+    "riscv_vm/syscall_doom.cpp"
     "riscv_vm/state.h"
     )
 add_executable(riscv_vm ${DRV_SRC})
-target_link_libraries(riscv_vm riscv_core)
+target_link_libraries(riscv_vm riscv_core ${SDL_LIBRARY})

@@ -10,6 +10,8 @@ The key goals of this project is to provide a small emulator for learning about 
 
 See [news](NEWS.md) for development updates.
 
+See [this readme](tests/doom/README.md) for notes about the DOOM demo.
+
 
 ----
 ## Build Status
