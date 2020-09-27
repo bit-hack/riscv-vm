@@ -8,6 +8,8 @@ There are two elements to this project:
 
 The key goals of this project is to provide a small emulator for learning about RISC-V with a simple API for embedding it in other projects.
 
+See [news](NEWS.md) for development updates.
+
 
 ----
 ## Build Status
