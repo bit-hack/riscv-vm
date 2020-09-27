@@ -775,9 +775,9 @@ void rv_set_pc(struct riscv_t *rv, riscv_word_t pc) {
   rv->PC = pc;
 }
 
-void rv_get_pc(struct riscv_t *rv, riscv_word_t *out) {
-  assert(rv && out);
-  *out = rv->PC;
+riscv_word_t rv_get_pc(struct riscv_t *rv) {
+  assert(rv);
+  return rv->PC;
 }
 
 void rv_set_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t in) {
@@ -787,9 +787,10 @@ void rv_set_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t in) {
   }
 }
 
-void rv_get_reg(struct riscv_t *rv, uint32_t reg, riscv_word_t *out) {
-  assert(rv && out);
+riscv_word_t rv_get_reg(struct riscv_t *rv, uint32_t reg) {
+  assert(rv);
   if (reg < RV_NUM_REGS) {
-    *out = rv->X[reg];
+    return rv->X[reg];
   }
+  return ~0u;
 }

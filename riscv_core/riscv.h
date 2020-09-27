@@ -96,13 +96,13 @@ riscv_user_t rv_userdata(struct riscv_t *);
 void rv_set_pc(struct riscv_t *rv, riscv_word_t pc);
 
 // get the program counter of a riscv emulator
-void rv_get_pc(struct riscv_t *rv, riscv_word_t *out);
+riscv_word_t rv_get_pc(struct riscv_t *rv);
 
 // set a register of the riscv emulator
 void rv_set_reg(struct riscv_t *, uint32_t reg, riscv_word_t in);
 
 // get a register of the riscv emulator
-void rv_get_reg(struct riscv_t *, uint32_t reg, riscv_word_t *out);
+riscv_word_t rv_get_reg(struct riscv_t *, uint32_t reg);
 
 #ifdef __cplusplus
 };  // ifdef __cplusplus

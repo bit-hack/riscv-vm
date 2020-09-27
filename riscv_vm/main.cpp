@@ -132,8 +132,7 @@ int main(int argc, char **args) {
   for (; !state->done && cycles < max_cycles; ++cycles) {
     // trace execution
     if (DO_TRACE) {
-      uint32_t pc = 0;
-      rv_get_pc(rv, &pc);
+      uint32_t pc = rv_get_pc(rv);
       const char *sym = elf.find_symbol(pc);
       printf("%08x  %s\n", pc, (sym ? sym : ""));
     }

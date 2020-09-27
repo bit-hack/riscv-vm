@@ -49,17 +49,13 @@ enum {
   SYS_getmainvars = 2011,
 };
 
-// newlib _write syscall handler
 void syscall_write(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // _write(handle, buffer, count)
-  riscv_word_t handle = 0;
-  riscv_word_t buffer = 0;
-  riscv_word_t count = 0;
-  rv_get_reg(rv, rv_reg_a0, &handle);
-  rv_get_reg(rv, rv_reg_a1, &buffer);
-  rv_get_reg(rv, rv_reg_a2, &count);
+  riscv_word_t handle = rv_get_reg(rv, rv_reg_a0);
+  riscv_word_t buffer = rv_get_reg(rv, rv_reg_a1);
+  riscv_word_t count  = rv_get_reg(rv, rv_reg_a2);
   // read the string that we are printing
   std::array<char, 128> temp;
   uint32_t size = std::min(count, (uint32_t)temp.size() - 1);
@@ -72,24 +68,20 @@ void syscall_write(struct riscv_t *rv) {
   rv_set_reg(rv, rv_reg_a0, size);
 }
 
-// newlib _exit syscall handler
 void syscall_exit(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   s->done = true;
   // _exit(code);
-  riscv_word_t code = 0;
-  rv_get_reg(rv, rv_reg_a0, &code);
+  riscv_word_t code = rv_get_reg(rv, rv_reg_a0);
   fprintf(stdout, "inferior exit code %d\n", (int)code);
 }
 
-// newlib _brk syscall handler
 void syscall_brk(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // get the increment parameter
-  riscv_word_t increment = 0;
-  rv_get_reg(rv, rv_reg_a0, &increment);
+  riscv_word_t increment = rv_get_reg(rv, rv_reg_a0);
   // note: this doesnt seem to be how it should operate but checking the
   //       syscall source this is what it expects.
   //       the return value doesnt seem to be documented this way.
@@ -100,15 +92,12 @@ void syscall_brk(struct riscv_t *rv) {
   rv_set_reg(rv, rv_reg_a0, s->break_addr);
 }
 
-// newlib _gettimeofday syscall handler
 void syscall_gettimeofday(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // get the parameters
-  riscv_word_t tv = 0;
-  riscv_word_t tz = 0;
-  rv_get_reg(rv, rv_reg_a0, &tv);
-  rv_get_reg(rv, rv_reg_a1, &tz);
+  riscv_word_t tv = rv_get_reg(rv, rv_reg_a0);
+  riscv_word_t tz = rv_get_reg(rv, rv_reg_a1);
   // return the clock time
   if (tv) {
     clock_t t = clock();
@@ -127,52 +116,50 @@ void syscall_gettimeofday(struct riscv_t *rv) {
   rv_set_reg(rv, rv_reg_a0, 0);
 }
 
-// newlib _close syscall handler
 void syscall_close(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // _close(fd);
-  uint32_t fd = 0;
-  rv_get_reg(rv, rv_reg_a0, &fd);
+  uint32_t fd = rv_get_reg(rv, rv_reg_a0);
   // success
   rv_set_reg(rv, rv_reg_a0, 0);
 }
 
-// newlib _lseek syscall handler
 void syscall_lseek(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // TODO
 }
 
-// newlib _read syscall handler
 void syscall_read(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // _read(fd, buf, count);
-  uint32_t fd = 0;
-  uint32_t buf = 0;
-  uint32_t count = 0;
-  rv_get_reg(rv, rv_reg_a0, &fd);
-  rv_get_reg(rv, rv_reg_a1, &buf);
-  rv_get_reg(rv, rv_reg_a2, &count);
+  uint32_t fd    = rv_get_reg(rv, rv_reg_a0);
+  uint32_t buf   = rv_get_reg(rv, rv_reg_a1);
+  uint32_t count = rv_get_reg(rv, rv_reg_a2);
   // success
   rv_set_reg(rv, rv_reg_a0, count);
 }
 
-// newlib _fstat syscall handler
 void syscall_fstat(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // TODO
 }
 
+void syscall_open(struct riscv_t *rv) {
+  // access userdata
+  state_t *s = (state_t*)rv_userdata(rv);
+  // TODO
+
+}
+
 void syscall_handler(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // get the syscall number
-  riscv_word_t syscall = 0;
-  rv_get_reg(rv, rv_reg_a7, &syscall);
+  riscv_word_t syscall = rv_get_reg(rv, rv_reg_a7);
   // dispatch call type
   switch (syscall) {
   case SYS_close: 
@@ -198,6 +185,9 @@ void syscall_handler(struct riscv_t *rv) {
     break;
   case SYS_gettimeofday:
     syscall_gettimeofday(rv);
+    break;
+  case SYS_open:
+    syscall_open(rv);
     break;
   default:
     fprintf(stderr, "unknown syscall %d\n", int(syscall));
