@@ -6,16 +6,6 @@
 #include "riscv.h"
 
 
-// enable RV32M
-#define SUPPORT_RV32M     1
-// enable RV32 Zicsr
-#define SUPPORT_Zicsr     1
-// enable RV32 Zifencei
-#define SUPPORT_Zifencei  1
-// enable RV32A
-#define SUPPORT_RV32A     1
-
-
 #define RV_NUM_REGS 32
 
 
@@ -37,47 +27,41 @@ enum {
   CSR_INSTRETH  = 0xC82
 };
 
-// instruction opcode decode masks
+// instruction decode masks
 enum {
-  //               .xxxxxx....x.....xxx....x.......
-  inst_4_2     = 0b00000000000000000000000000011100,
-  inst_6_5     = 0b00000000000000000000000001100000,
-  //               .xxxxxx....x.....xxx....x.......
-};
-
-// instruction type decode masks
-enum {
-  //               .xxxxxx....x.....xxx....x.......
-  fr_opcode    = 0b00000000000000000000000001111111, // r-type
-  fr_rd        = 0b00000000000000000000111110000000,
-  fr_funct3    = 0b00000000000000000111000000000000,
-  fr_rs1       = 0b00000000000011111000000000000000,
-  fr_rs2       = 0b00000001111100000000000000000000,
-  fr_funct7    = 0b11111110000000000000000000000000,
-  //               .xxxxxx....x.....xxx....x.......
-  fi_imm_11_0  = 0b11111111111100000000000000000000, // i-type
-  //               .xxxxxx....x.....xxx....x.......
-  fs_imm_4_0   = 0b00000000000000000000111110000000, // s-type
-  fs_imm_11_5  = 0b11111110000000000000000000000000,
-  //               .xxxxxx....x.....xxx....x.......
-  fb_imm_11    = 0b00000000000000000000000010000000, // b-type
-  fb_imm_4_1   = 0b00000000000000000000111100000000,
-  fb_imm_10_5  = 0b01111110000000000000000000000000,
-  fb_imm_12    = 0b10000000000000000000000000000000,
-  //               .xxxxxx....x.....xxx....x.......
-  fu_imm_31_12 = 0b11111111111111111111000000000000, // u-type
-  //               .xxxxxx....x.....xxx....x.......
-  fj_imm_19_12 = 0b00000000000011111111000000000000, // j-type
-  fj_imm_11    = 0b00000000000100000000000000000000,
-  fj_imm_10_1  = 0b01111111111000000000000000000000,
-  fj_imm_20    = 0b10000000000000000000000000000000,
-  //               .xxxxxx....x.....xxx....x.......
+  //               ....xxxx....xxxx....xxxx....xxxx
+  INST_6_2     = 0b00000000000000000000000001111100,
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FR_OPCODE    = 0b00000000000000000000000001111111, // r-type
+  FR_RD        = 0b00000000000000000000111110000000,
+  FR_FUNCT3    = 0b00000000000000000111000000000000,
+  FR_RS1       = 0b00000000000011111000000000000000,
+  FR_RS2       = 0b00000001111100000000000000000000,
+  FR_FUNCT7    = 0b11111110000000000000000000000000,
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FI_IMM_11_0  = 0b11111111111100000000000000000000, // i-type
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FS_IMM_4_0   = 0b00000000000000000000111110000000, // s-type
+  FS_IMM_11_5  = 0b11111110000000000000000000000000,
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FB_IMM_11    = 0b00000000000000000000000010000000, // b-type
+  FB_IMM_4_1   = 0b00000000000000000000111100000000,
+  FB_IMM_10_5  = 0b01111110000000000000000000000000,
+  FB_IMM_12    = 0b10000000000000000000000000000000,
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FU_IMM_31_12 = 0b11111111111111111111000000000000, // u-type
+  //               ....xxxx....xxxx....xxxx....xxxx
+  FJ_IMM_19_12 = 0b00000000000011111111000000000000, // j-type
+  FJ_IMM_11    = 0b00000000000100000000000000000000,
+  FJ_IMM_10_1  = 0b01111111111000000000000000000000,
+  FJ_IMM_20    = 0b10000000000000000000000000000000,
+  //               ....xxxx....xxxx....xxxx....xxxx
 };
 
 struct riscv_t {
   // io interface
   struct riscv_io_t io;
-  // register file
+  // integer registers
   riscv_word_t X[RV_NUM_REGS];
   riscv_word_t PC;
   // user provided data
@@ -87,66 +71,71 @@ struct riscv_t {
   // CSRs
   uint64_t csr_cycle;
   uint32_t csr_mstatus;
+#if SUPPORT_RV32F
+  // float registers
+  riscv_float_t F[RV_NUM_REGS];
+  uint32_t csr_fcsr;
+#endif
 };
 
 // decode rd field
 static inline uint32_t dec_rd(uint32_t inst) {
-  return (inst & fr_rd) >> 7;
+  return (inst & FR_RD) >> 7;
 }
 
 // decode rs1 field
 static inline uint32_t dec_rs1(uint32_t inst) {
-  return (inst & fr_rs1) >> 15;
+  return (inst & FR_RS1) >> 15;
 }
 
 // decode rs2 field
 static inline uint32_t dec_rs2(uint32_t inst) {
-  return (inst & fr_rs2) >> 20;
+  return (inst & FR_RS2) >> 20;
 }
 
 // decoded funct3 field
 static inline uint32_t dec_funct3(uint32_t inst) {
-  return (inst & fr_funct3) >> 12;
+  return (inst & FR_FUNCT3) >> 12;
 }
 
 // decode funct7 field
 static inline uint32_t dec_funct7(uint32_t inst) {
-  return (inst & fr_funct7) >> 25;
+  return (inst & FR_FUNCT7) >> 25;
 }
 
 // decode utype instruction immediate
 static inline uint32_t dec_utype_imm(uint32_t inst) {
-  return inst & fu_imm_31_12;
+  return inst & FU_IMM_31_12;
 }
 
 // decode jtype instruction immediate
 static inline int32_t dec_jtype_imm(uint32_t inst) {
   uint32_t dst = 0;
-  dst |= (inst & fj_imm_20);
-  dst |= (inst & fj_imm_19_12) << 11;
-  dst |= (inst & fj_imm_11)    << 2;
-  dst |= (inst & fj_imm_10_1)  >> 9;
+  dst |= (inst & FJ_IMM_20);
+  dst |= (inst & FJ_IMM_19_12) << 11;
+  dst |= (inst & FJ_IMM_11)    << 2;
+  dst |= (inst & FJ_IMM_10_1)  >> 9;
   // note: shifted to 2nd least significant bit
   return ((int32_t)dst) >> 11;
 }
 
 // decode itype instruction immediate
 static inline int32_t dec_itype_imm(uint32_t inst) {
-  return ((int32_t)(inst & fi_imm_11_0)) >> 20;
+  return ((int32_t)(inst & FI_IMM_11_0)) >> 20;
 }
 
 // decode csr instruction immediate (same as itype, zero extend)
 static inline uint32_t dec_csr(uint32_t inst) {
-  return ((uint32_t)(inst & fi_imm_11_0)) >> 20;
+  return ((uint32_t)(inst & FI_IMM_11_0)) >> 20;
 }
 
 // decode btype instruction immediate
 static inline int32_t dec_btype_imm(uint32_t inst) {
   uint32_t dst = 0;
-  dst |= (inst & fb_imm_12);
-  dst |= (inst & fb_imm_11) << 23;
-  dst |= (inst & fb_imm_10_5) >> 1;
-  dst |= (inst & fb_imm_4_1) << 12;
+  dst |= (inst & FB_IMM_12);
+  dst |= (inst & FB_IMM_11) << 23;
+  dst |= (inst & FB_IMM_10_5) >> 1;
+  dst |= (inst & FB_IMM_4_1) << 12;
   // note: shifted to 2nd least significant bit
   return ((int32_t)dst) >> 19;
 }
@@ -154,8 +143,8 @@ static inline int32_t dec_btype_imm(uint32_t inst) {
 // decode stype instruction immediate
 static inline int32_t dec_stype_imm(uint32_t inst) {
   uint32_t dst = 0;
-  dst |= (inst & fs_imm_11_5);
-  dst |= (inst & fs_imm_4_0) << 13;
+  dst |= (inst & FS_IMM_11_5);
+  dst |= (inst & FS_IMM_4_0) << 13;
   return ((int32_t)dst) >> 20;
 }
 
@@ -274,12 +263,14 @@ static void op_load(struct riscv_t *rv, uint32_t inst) {
   rv->PC += 4;
 }
 
-static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
 #if SUPPORT_Zifencei
+static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
   // TODO
   rv->PC += 4;
-#endif  // SUPPORT_Zifencei
 }
+#else
+#define op_misc_mem NULL
+#endif  // SUPPORT_Zifencei
 
 static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
@@ -665,8 +656,8 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   }
 }
 
-static void op_amo(struct riscv_t *rv, uint32_t inst) {
 #if SUPPORT_RV32A
+static void op_amo(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
@@ -760,7 +751,6 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
   default:
     assert(!"unreachable");
   }
-#endif  // SUPPORT_RV32A
   // step over instruction
   rv->PC += 4;
   // enforce zero register
@@ -768,11 +758,62 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
     rv->X[rv_reg_zero] = 0;
   }
 }
+#else
+#define op_amo NULL
+#endif // SUPPORT_RV32A
+
+#if SUPPORT_RV32F
+void op_load_fp(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t imm = dec_itype_imm(inst);
+  // TODO
+}
+
+void op_store_fp(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t imm = dec_stype_imm(inst);
+  // TODO
+}
+
+void op_fp(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t rm     = dec_funct3(inst); // rounding mode
+  const uint32_t funct7 = dec_funct7(inst);
+  // TODO
+}
+
+void op_madd(struct riscv_t *rv, uint32_t inst) {
+}
+
+void op_msub(struct riscv_t *rv, uint32_t inst) {
+}
+
+void op_nmsub(struct riscv_t *rv, uint32_t inst) {
+}
+
+void op_nmadd(struct riscv_t *rv, uint32_t inst) {
+}
+#else
+#define op_load_fp  NULL
+#define op_store_fp NULL
+#define op_fp       NULL
+#define op_madd     NULL
+#define op_msub     NULL
+#define op_nmsub    NULL
+#define op_nmadd    NULL
+#endif  // SUPPORT_RV32F
 
 // opcode dispatch table
 static const opcode_t opcodes[] = {
-  op_load, NULL,  NULL, op_misc_mem, op_op_imm, op_auipc, NULL, NULL, op_store,  NULL,    NULL, op_amo, op_op,     op_lui, NULL, NULL,
-  NULL,    NULL,  NULL, NULL,        NULL,      NULL,     NULL, NULL, op_branch, op_jalr, NULL, op_jal, op_system, NULL,   NULL, NULL,
+//  000        001          010       011          100        101       110   111
+    op_load,   op_load_fp,  NULL,     op_misc_mem, op_op_imm, op_auipc, NULL, NULL, // 00
+    op_store,  op_store_fp, NULL,     op_amo,      op_op,     op_lui,   NULL, NULL, // 01
+    op_madd,   op_msub,     op_nmsub, op_nmadd,    op_fp,     NULL,     NULL, NULL, // 10
+    op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
 struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
@@ -792,7 +833,7 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
   while (cycles-- && !rv->exception) {
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
-    const uint32_t index = (inst & (inst_4_2 | inst_6_5)) >> 2;
+    const uint32_t index = (inst & INST_6_2) >> 2;
     // dispatch this opcode
     const opcode_t op = opcodes[index];
     assert(op);

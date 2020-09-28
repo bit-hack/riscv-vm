@@ -17,6 +17,7 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 set(LIB_SRC
     "riscv_core/riscv.c"
     "riscv_core/riscv.h"
+    "riscv_core/riscv_conf.h"
     )
 add_library(riscv_core ${LIB_SRC})
 

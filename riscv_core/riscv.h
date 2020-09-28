@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+#include "riscv_conf.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,6 +55,9 @@ typedef uint32_t riscv_word_t;
 typedef uint16_t riscv_half_t;
 typedef uint8_t  riscv_byte_t;
 typedef uint32_t riscv_exception_t;
+#if SUPPORT_RV32F
+typedef float    riscv_float_t;
+#endif
 
 // memory read handlers
 typedef riscv_word_t (*riscv_mem_ifetch)(struct riscv_t *rv, riscv_word_t addr);
