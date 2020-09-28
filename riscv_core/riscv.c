@@ -25,6 +25,8 @@ enum {
   CSR_FFLAGS    = 0x001,
   CSR_FRM       = 0x002,
   CSR_FCSR      = 0x003,
+  // maching status
+  CSR_MSTATUS   = 0x300,
   // low words
   CSR_CYCLE     = 0xb00, // 0xC00,
   CSR_TIME      = 0xC01,
@@ -82,8 +84,9 @@ struct riscv_t {
   riscv_user_t userdata;
   // exception status
   riscv_exception_t exception;
-  // 
+  // CSRs
   uint64_t csr_cycle;
+  uint32_t csr_mstatus;
 };
 
 // decode rd field
@@ -173,6 +176,8 @@ static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
     return (uint32_t*)(&rv->csr_cycle) + 0;
   case CSR_CYCLEH:
     return (uint32_t*)(&rv->csr_cycle) + 1;
+  case CSR_MSTATUS:
+    return (uint32_t*)(&rv->csr_mstatus);
   default:
     return NULL;
   }
@@ -180,6 +185,8 @@ static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
 
 static bool csr_is_writable(uint32_t csr) {
   switch (csr) {
+  case CSR_MSTATUS:
+    return true;
   case CSR_CYCLE:
   case CSR_CYCLEH:
   default:
@@ -190,6 +197,9 @@ static bool csr_is_writable(uint32_t csr) {
 // perform csrrw
 static uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val) {
   uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
   const uint32_t out = *c;
   if (csr_is_writable(csr)) {
     *c = val;
@@ -200,6 +210,9 @@ static uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val) {
 // perform csrrs (atomic read and set)
 static uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val) {
   uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
   const uint32_t out = *c;
   if (csr_is_writable(csr)) {
     *c |= val;
@@ -210,6 +223,9 @@ static uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val) {
 // perform csrrc (atomic read and clear)
 static uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
   uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
   const uint32_t out = *c;
   if (csr_is_writable(csr)) {
     *c &= ~val;
