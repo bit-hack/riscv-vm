@@ -56,7 +56,8 @@ enum {
   O_ACCMODE = 3,
 };
 
-void syscall_DG_DrawFrame(struct riscv_t *rv);
+// from syscall_sdl.cpp
+void syscall_draw_frame(struct riscv_t *rv);
 
 namespace {
 
@@ -300,7 +301,7 @@ void syscall_handler(struct riscv_t *rv) {
     break;
 #if RISCV_VM_USE_SDL
   case 0xbeef:
-    syscall_DG_DrawFrame(rv);
+    syscall_draw_frame(rv);
     break;
 #endif
   default:
