@@ -1,4 +1,5 @@
 #include <cstring>
+#include <ctime>
 #include <memory>
 
 #include "elf.h"
@@ -10,15 +11,16 @@
 
 
 // enable program trace mode
-bool g_trace = false;
+bool g_arg_trace = false;
 // enable compliance mode
-bool g_compliance = false;
+bool g_arg_compliance = false;
 // target executable
-const char *g_program = "a.out";
+const char *g_arg_program = "a.out";
+// show MIPS
+bool g_arg_show_mips = false;
 
 // main syscall handler
 void syscall_handler(struct riscv_t *);
-
 // arg parsing functions
 void print_usage(const char *filename);
 bool parse_args(int argc, char **args);
@@ -64,7 +66,7 @@ void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // in compliance testing it seems any `ecall` should abort
-  if (g_compliance) {
+  if (g_arg_compliance) {
     s->done = true;
     return;
   }
@@ -77,8 +79,51 @@ void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   s->done = true;
 }
 
+// run the core - printing out an instruction trace
+void run_and_trace(riscv_t *rv, state_t *state, elf_t &elf) {
+  static const uint32_t cycles_per_step = 1;
+  // run until we see the flag that we are done
+  for (; !state->done;) {
+    // trace execution
+    uint32_t pc = rv_get_pc(rv);
+    const char *sym = elf.find_symbol(pc);
+    printf("%08x  %s\n", pc, (sym ? sym : ""));
+    // step instructions
+    rv_step(rv, cycles_per_step);
+  }
+}
+
+// run the core - showing MIPS throughput
+void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
+  static const uint32_t cycles_per_step = 500;
+  clock_t start = clock();
+  uint32_t clocks = 0;
+  // run until we see the flag that we are done
+  for (; !state->done;) {
+    // track instruction MIPS
+    if ((clock() - start) >= CLOCKS_PER_SEC) {
+      start += CLOCKS_PER_SEC;
+      printf("%d IPS\n", int(clocks));
+      clocks = 0;
+    }
+    // step instructions
+    rv_step(rv, cycles_per_step);
+    clocks += cycles_per_step;
+  }
+}
+
+// run the core
+void run(riscv_t *rv, state_t *state, elf_t &elf) {
+  static const uint32_t cycles_per_step = 100;
+  // run until we see the flag that we are done
+  for (; !state->done;) {
+    // step instructions
+    rv_step(rv, cycles_per_step);
+  }
+}
 
 } // namespace {}
+
 
 int main(int argc, char **args) {
 
@@ -90,8 +135,8 @@ int main(int argc, char **args) {
 
   // load the ELF file from disk
   elf_t elf;
-  if (!elf.load(g_program)) {
-    fprintf(stderr, "Unable to load ELF file '%s'\n", g_program);
+  if (!elf.load(g_arg_program)) {
+    fprintf(stderr, "Unable to load ELF file '%s'\n", g_arg_program);
     return 1;
   }
 
@@ -132,27 +177,19 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  if (g_trace) {
-    // run until we see the flag that we are done
-    for (; !state->done;) {
-      // trace execution
-      uint32_t pc = rv_get_pc(rv);
-      const char *sym = elf.find_symbol(pc);
-      printf("%08x  %s\n", pc, (sym ? sym : ""));
-      // step instructions
-      rv_step(rv, 100);
-    }
+  // run based on the chosen mode
+  if (g_arg_trace) {
+    run_and_trace(rv, state.get(), elf);
+  }
+  else if (g_arg_show_mips) {
+    run_and_show_mips(rv, state.get(), elf);
   }
   else {
-    // run until we see the flag that we are done
-    for (; !state->done;) {
-      // step instructions
-      rv_step(rv, 100);
-    }
+    run(rv, state.get(), elf);
   }
 
   // print execution signature
-  if (g_compliance) {
+  if (g_arg_compliance) {
     uint32_t start = 0, end = 0;
     if (elf.get_data_section_range(start, end)) {
       // try and access the exact signature start

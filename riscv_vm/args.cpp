@@ -2,13 +2,15 @@
 #include <cstring>
 
 
-
 // enable program trace mode
-extern bool g_trace;
+extern bool g_arg_trace;
 // enable compliance mode
-extern bool g_compliance;
+extern bool g_arg_compliance;
+// show MIPS throughput
+extern bool g_arg_show_mips;
+
 // target executable
-extern const char *g_program;
+extern const char *g_arg_program;
 
 
 void print_usage(const char *filename) {
@@ -19,6 +21,7 @@ void print_usage(const char *filename) {
   program        | RV32IM ELF file to execute
   --compliance   | Generate a compliance signature
   --trace        | Print execution trace
+  --show-mips    | Show MIPS throughput
 )", filename);
 }
 
@@ -32,11 +35,15 @@ bool parse_args(int argc, char **args) {
         return false;
       }
       if (0 == strcmp(arg, "--compliance")) {
-        g_compliance = true;
+        g_arg_compliance = true;
         continue;
       }
       if (0 == strcmp(arg, "--trace")) {
-        g_trace = true;
+        g_arg_trace = true;
+        continue;
+      }
+      if (0 == strcmp(arg, "--show-mips")) {
+        g_arg_show_mips = true;
         continue;
       }
       // error
@@ -44,7 +51,7 @@ bool parse_args(int argc, char **args) {
       return false;
     }
     // set the executable
-    g_program = arg;
+    g_arg_program = arg;
   }
   // success
   return true;
