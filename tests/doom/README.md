@@ -9,12 +9,20 @@ I will surely add user input in time as I improve the emulator speed too.
 
 
 ### Prerequisites
-- SDL1.2
-- The `aidan/doom` branch of the `riscv-vm` project.
+- SDL1.2 Library
+
+
+### Build with SDL Instructions
+```
+mkdir build
+cd build
+cmake .. -DUSE_SDL
+make
+```
 
 
 ### Instructions
+- Build the `riscv-vm` project with SDL support.
 - Download the shareware `doom1.wad` file.
 - Place `doom1.wad` into the same folder as `doom.elf`.
-- Build the `aidan/doom` branch of the `riscv-vm` project.
 - From the `tests/doom` folder run `./riscv-vm doom.elf`.
