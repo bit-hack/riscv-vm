@@ -298,9 +298,11 @@ void syscall_handler(struct riscv_t *rv) {
   case SYS_open:
     syscall_open(rv);
     break;
+#if RISCV_VM_USE_SDL
   case 0xbeef:
     syscall_DG_DrawFrame(rv);
     break;
+#endif
   default:
     fprintf(stderr, "unknown syscall %d\n", int(syscall));
     s->done = true;

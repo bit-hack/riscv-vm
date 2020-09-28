@@ -1,3 +1,5 @@
+#if RISCV_VM_USE_SDL
+
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
@@ -24,6 +26,7 @@ void syscall_DG_DrawFrame(struct riscv_t *rv) {
       exit(1);
     }
     g_video = SDL_SetVideoMode(width, height, 32, 0);
+    SDL_WM_SetCaption("riscv-vm", nullptr);
   }
   // read directly into video memory
   s->mem.read((uint8_t*)g_video->pixels, screen, width * height * 4);
@@ -37,3 +40,5 @@ void syscall_DG_DrawFrame(struct riscv_t *rv) {
     }
   }
 }
+
+#endif  // RISCV_VM_USE_SDL
