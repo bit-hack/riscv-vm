@@ -23,6 +23,7 @@ See [this readme](tests/doom/README.md) for notes about the DOOM demo.
 ## Build requirements
 - C++ 14 compatable compiler  (VisualStudio 15+, GCC 4.9+)
 - CMake 3.0 or above
+- SDL1.2 (if you want video support)
 
 
 ----
@@ -52,7 +53,7 @@ riscv_vm a.out
 - Complete RV32G compliance is the end goal
 - Testing is done currently using a private fork of the compliance test suite
   - As the project develops testing will become a key focus
-- It is enough that it can run doom, see [here](https://github.com/bit-hack/riscv-vm/tree/aidan/doom).
+- It is enough that it can run doom, see [the README](tests/doom/README.md)
 
 
 ----
