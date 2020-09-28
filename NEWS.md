@@ -1,7 +1,18 @@
 # RISV-VM News
 
 ----
-### 27 Sept 2020
+### 28 Sept. 2020
+
+I hit a milestone of sorts yesterday evening.  I was able to compile and run DOOM on the RISC-VM simulator!  I was very surprised that it was quite so easy to get up and running.  The execution speed is not quite high enough to maintain a decent framerate however.
+
+A round of profiling was done, which showed me that the instruction fetch step was a significant bottleneck.  Some of the memory routines were then rewritten to improve their performance which brought the game up to interactive frame rates.
+
+I have added a MIPS counter to the project today which should give me an indication of instruction throughput.  Currently when running DOOM in riscv-vm on my laptop (I7-6600U 2.60GHz) it reaches a fairly consistent 117955000 IPS (118 MIPS).  The work done per instruction would be lower than a CISC design however, which is something to keep in mind.
+
+My work now is focused on cleaning up the code, merging my DOOM specific code back into the master branch in a clean and portable way.  Once thats done I will think about optimizing as well as adding float support.
+
+----
+### 27 Sept. 2020
 
 It has been just over a week since I started this project and it has come a long way in that time.  I was fortunate that due to the well written ISA spec and its design that the emulator core came up fairly rapidly showing good initial correctness.  Having the compliance test suite to hand was fantastic for validating the instructions as I added them.
 
