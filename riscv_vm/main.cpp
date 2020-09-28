@@ -9,18 +9,19 @@
 #include "state.h"
 
 
-// any `ecall` should halt the program (for compliance testing)
-static const bool DO_COMPLIANCE_CONFIG = false;
-
-// emit an execution signature (for compliance testing)
-static const bool DO_SIGNATURE = false;
-
-// emit an instruction trace
-static const bool DO_TRACE = false;
-
+// enable program trace mode
+bool g_trace = false;
+// enable compliance mode
+bool g_compliance = false;
+// target executable
+const char *g_program = "a.out";
 
 // main syscall handler
 void syscall_handler(struct riscv_t *);
+
+// arg parsing functions
+void print_usage(const char *filename);
+bool parse_args(int argc, char **args);
 
 namespace {
 
@@ -63,8 +64,9 @@ void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // in compliance testing it seems any `ecall` should abort
-  if (DO_COMPLIANCE_CONFIG) {
+  if (g_compliance) {
     s->done = true;
+    return;
   }
   // pass to the syscall handler
   syscall_handler(rv);
@@ -75,19 +77,21 @@ void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   s->done = true;
 }
 
+
 } // namespace {}
 
 int main(int argc, char **args) {
 
-  if (argc <= 1) {
-    fprintf(stderr, "Usage: %s program.elf\n", args[0]);
+  // parse the program arguments
+  if (!parse_args(argc, args)) {
+    print_usage(args[0]);
     return 1;
   }
 
   // load the ELF file from disk
   elf_t elf;
-  if (!elf.load(args[1])) {
-    fprintf(stderr, "Unable to load ELF file '%s'\n", args[1]);
+  if (!elf.load(g_program)) {
+    fprintf(stderr, "Unable to load ELF file '%s'\n", g_program);
     return 1;
   }
 
@@ -128,20 +132,27 @@ int main(int argc, char **args) {
     return 1;
   }
 
-  // run until we see the flag that we are done
-  for (; !state->done;) {
-    // trace execution
-    if (DO_TRACE) {
+  if (g_trace) {
+    // run until we see the flag that we are done
+    for (; !state->done;) {
+      // trace execution
       uint32_t pc = rv_get_pc(rv);
       const char *sym = elf.find_symbol(pc);
       printf("%08x  %s\n", pc, (sym ? sym : ""));
+      // step instructions
+      rv_step(rv, 100);
     }
-    // step instructions
-    rv_step(rv, 100);
+  }
+  else {
+    // run until we see the flag that we are done
+    for (; !state->done;) {
+      // step instructions
+      rv_step(rv, 100);
+    }
   }
 
   // print execution signature
-  if (DO_SIGNATURE) {
+  if (g_compliance) {
     uint32_t start = 0, end = 0;
     if (elf.get_data_section_range(start, end)) {
       // try and access the exact signature start

@@ -21,6 +21,7 @@ set(DRV_SRC
     "riscv_vm/syscall.cpp"
     "riscv_vm/syscall_doom.cpp"
     "riscv_vm/state.h"
+    "riscv_vm/args.cpp"
     )
 add_executable(riscv_vm ${DRV_SRC})
 target_link_libraries(riscv_vm riscv_core ${SDL_LIBRARY})
