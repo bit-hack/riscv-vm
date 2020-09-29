@@ -767,6 +767,45 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
 #endif // SUPPORT_RV32A
 
 #if SUPPORT_RV32F
+enum {
+  //             ....xxxx....xxxx....xxxx....xxxx
+  FMASK_SIGN = 0b10000000000000000000000000000000,
+  FMASK_EXPN = 0b01111111100000000000000000000000,
+  FMASK_FRAC = 0b00000000011111111111111111111111,
+  //             ........xxxxxxxx........xxxxxxxx
+};
+
+static uint32_t calc_fclass(uint32_t f) {
+
+  const uint32_t sign = f & FMASK_SIGN;
+  const uint32_t expn = f & FMASK_EXPN;
+  const uint32_t frac = f & FMASK_FRAC;
+
+  uint32_t out = 0;
+  // 0x001    rs1 is -INF
+  out |= (f == 0xff800000)                               ? 0x001 : 0;
+  // 0x002    rs1 is negative normal
+  out |= (expn && expn < 0x78000000 && sign)             ? 0x002 : 0;
+  // 0x004    rs1 is negative subnormal
+  out |= (!expn && frac && sign)                         ? 0x004 : 0;
+  // 0x008    rs1 is -0
+  out |= (f == 0x80000000)                               ? 0x008 : 0;
+  // 0x010    rs1 is +0
+  out |= (f == 0x00000000)                               ? 0x010 : 0;
+  // 0x020    rs1 is positive subnormal
+  out |= (!expn && frac && !sign)                        ? 0x020 : 0;
+  // 0x040    rs1 is positive normal
+  out |= (expn && expn < 0x78000000 && !sign)            ? 0x040 : 0;
+  // 0x080    rs1 is +INF
+  out |= (f == 0x7fffffff)                               ? 0x080 : 0;
+  // 0x100    rs1 is a signaling NaN
+  out |= (expn == FMASK_EXPN && (frac <= 0x7ff) && frac) ? 0x100 : 0;
+  // 0x200    rs1 is a quiet NaN
+  out |= (expn == FMASK_EXPN && (frac >= 0x800))         ? 0x200 : 0;
+
+  return out;
+}
+
 void op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
@@ -825,12 +864,12 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
       assert(!"unreachable");
     }
     break;
-  case 0b0010100:  // FMIN, FMAX
+  case 0b0010100:
     switch (rm) {
-    case 0b000:
+    case 0b000:  // FMIN
       rv->F[rd] = fminf(rv->F[rs1], rv->F[rs2]);
       break;
-    case 0b001:
+    case 0b001:  // FMAX
       rv->F[rd] = fmaxf(rv->F[rs1], rv->F[rs2]);
       break;
     default:
@@ -859,18 +898,8 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
       {
         uint32_t bits;
         memcpy(&bits, rv->F + rs1, 4);
-        uint32_t out = 0;
-        // 0x001    rs1 is -INF
-        // 0x002    rs1 is negative normal
-        // 0x004    rs1 is negative subnormal
-        // 0x008    rs1 is -0
-        // 0x010    rs1 is +0
-        // 0x020    rs1 is positive subnormal
-        // 0x040    rs1 is positive normal
-        // 0x080    rs1 is +INF
-        // 0x100    rs1 is a signaling NaN
-        // 0x200    rs1 is a quiet NaN
-        rv->X[rd] = out;
+        rv->X[rd] = calc_fclass(bits);
+        break;
       }
     default:
       assert(!"unreachable");
@@ -984,7 +1013,12 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   rv->exception = rv_except_none;
   // reset the csrs
   rv->csr_cycle = 0;
-  return;
+  rv->csr_mstatus = 0;
+  // reset float registers
+#if SUPPORT_RV32F
+  memset(rv->F, 0, sizeof(float) * RV_NUM_REGS);
+  rv->csr_fcsr = 0;
+#endif
 }
 
 riscv_user_t rv_userdata(struct riscv_t *rv) {
