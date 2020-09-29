@@ -5,6 +5,10 @@
 
 #include "riscv.h"
 
+#if SUPPORT_RV32F
+#include <math.h>
+#endif
+
 
 #define RV_NUM_REGS 32
 
@@ -766,24 +770,146 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
 void op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
-  const uint32_t imm = dec_itype_imm(inst);
-  // TODO
+  const int32_t imm = dec_itype_imm(inst);
+  // calculate load address
+  const uint32_t addr = rs1 + imm;
+  // copy into the float register
+  const uint32_t data = rv->io.mem_read_w(rv, addr);
+  memcpy(rv->F + rd, &data, 4);
 }
 
 void op_store_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1 = dec_rs1(inst);
   const uint32_t rs2 = dec_rs2(inst);
-  const uint32_t imm = dec_stype_imm(inst);
-  // TODO
+  const int32_t imm = dec_stype_imm(inst);
+  // calculate store address
+  const uint32_t addr = rs1 + imm;
+  // copy from float registers
+  uint32_t data;
+  memcpy(&data, (const void*)(rv->F + rs2), 4);
+  rv->io.mem_write_w(rv, addr, data);
 }
 
 void op_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
-  const uint32_t rm     = dec_funct3(inst); // rounding mode
+  const uint32_t rm     = dec_funct3(inst); // TODO: rounding!
   const uint32_t funct7 = dec_funct7(inst);
-  // TODO
+  // dispatch based on func7 (low 2 bits are width)
+  switch (funct7) {
+  case 0b0000000:  // FADD
+    rv->F[rd] = rv->F[rs1] + rv->F[rs2];
+    break;
+  case 0b0000100:  // FSUB
+    rv->F[rd] = rv->F[rs1] - rv->F[rs2];
+    break;
+  case 0b0001000:  // FMUL
+    rv->F[rd] = rv->F[rs1] * rv->F[rs2];
+    break;
+  case 0b0001100:  // FDIV
+    rv->F[rd] = rv->F[rs1] / rv->F[rs2];
+    break;
+  case 0b0101100:  // FSQRT
+    rv->F[rd] = sqrtf(rv->F[rs1]);
+    break;
+  case 0b0010000:
+    switch (rm) {
+    case 0b000:  // FSGNJ.S
+      // all bits of rs1 but sign bit of rs2
+    case 0b001:  // FSGNJN.S
+      // all bits of rs1 but inverted sign bit of rs2
+    case 0b010:  // FSGNJX.S
+      // all bits of rs1 but sign bit is the xor of rs1s and rs2s sign bit
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b0010100:  // FMIN, FMAX
+    switch (rm) {
+    case 0b000:
+      rv->F[rd] = fminf(rv->F[rs1], rv->F[rs2]);
+      break;
+    case 0b001:
+      rv->F[rd] = fmaxf(rv->F[rs1], rv->F[rs2]);
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1100000:
+    switch (rs2) {
+    case 0b00000:  // FCVT.W.S
+      rv->F[rd] = (float)((int32_t)rv->X[rs1]);
+      break;
+    case 0b00001:  // FCVT.WU.S
+      rv->F[rd] = (float)((uint32_t)rv->X[rs1]);
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1110000:
+    switch (rm) {
+    case 0b000:  // FMV.X.W
+      // bit exact copy between register files
+      memcpy(rv->F + rd, rv->X + rs1, 4);
+      break;
+    case 0b001:  // FCLASS.S
+      {
+        uint32_t bits;
+        memcpy(&bits, rv->F + rs1, 4);
+        uint32_t out = 0;
+        // 0x001    rs1 is -INF
+        // 0x002    rs1 is negative normal
+        // 0x004    rs1 is negative subnormal
+        // 0x008    rs1 is -0
+        // 0x010    rs1 is +0
+        // 0x020    rs1 is positive subnormal
+        // 0x040    rs1 is positive normal
+        // 0x080    rs1 is +INF
+        // 0x100    rs1 is a signaling NaN
+        // 0x200    rs1 is a quiet NaN
+        rv->X[rd] = out;
+      }
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1010000:
+    switch (rm) {
+    case 0b010:  // FEQ.S
+      rv->X[rd] = (rv->F[rs1] == rv->F[rs2]) ? 1 : 0;
+      break;
+    case 0b001:  // FLT.S
+      rv->X[rd] = (rv->F[rs1] < rv->F[rs2]) ? 1 : 0;
+      break;
+    case 0b000:  // FLE.S
+      rv->X[rd] = (rv->F[rs1] <= rv->F[rs2]) ? 1 : 0;
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1101000:
+    switch (rs2) {
+    case 0b00000:  // FCVT.S.W
+      rv->X[rd] = (uint32_t)((int32_t)rv->F[rs1]);
+      break;
+    case 0b00001:  // FCVT.S.WU
+      rv->X[rd] = ((uint32_t)rv->F[rs1]);
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1111000:  // FMV.W.X
+    // bit exact copy between register files
+    memcpy(rv->X + rd, rv->F + rs1, 4);
+    break;
+  default:
+    assert(!"unreachable");
+  }
 }
 
 void op_madd(struct riscv_t *rv, uint32_t inst) {
