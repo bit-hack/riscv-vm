@@ -60,6 +60,9 @@ enum {
   FJ_IMM_10_1  = 0b01111111111000000000000000000000,
   FJ_IMM_20    = 0b10000000000000000000000000000000,
   //               ....xxxx....xxxx....xxxx....xxxx
+  FR4_FMT      = 0b00000110000000000000000000000000, // r4-type
+  FR4_RS3      = 0b11111000000000000000000000000000,
+  //               ....xxxx....xxxx....xxxx....xxxx
 };
 
 struct riscv_t {
@@ -126,6 +129,16 @@ static inline int32_t dec_jtype_imm(uint32_t inst) {
 // decode itype instruction immediate
 static inline int32_t dec_itype_imm(uint32_t inst) {
   return ((int32_t)(inst & FI_IMM_11_0)) >> 20;
+}
+
+// decode r4type format field
+static inline uint32_t dec_r4type_fmt(uint32_t inst) {
+  return (inst & FR4_FMT) >> 25;
+}
+
+// decode r4type rs3 field
+static inline uint32_t dec_r4type_rs3(uint32_t inst) {
+  return (inst & FR4_RS3) >> 27;
 }
 
 // decode csr instruction immediate (same as itype, zero extend)
@@ -862,17 +875,26 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
     rv->F[rd] = sqrtf(rv->F[rs1]);
     break;
   case 0b0010000:
+  {
+    uint32_t f1, f2, res;
+    memcpy(&f1, rv->F + rs1, 4);
+    memcpy(&f2, rv->F + rs2, 4);
     switch (rm) {
     case 0b000:  // FSGNJ.S
-      // all bits of rs1 but sign bit of rs2
+      res = (f1 & ~FMASK_SIGN) | (f2 & FMASK_SIGN);
+      break;
     case 0b001:  // FSGNJN.S
-      // all bits of rs1 but inverted sign bit of rs2
+      res = (f1 & ~FMASK_SIGN) | (~f2 & FMASK_SIGN);
+      break;
     case 0b010:  // FSGNJX.S
-      // all bits of rs1 but sign bit is the xor of rs1s and rs2s sign bit
+      res = f1 ^ (f2 & FMASK_SIGN);
+      break;
     default:
       assert(!"unreachable");
     }
+    memcpy(rv->F + rd, &res, 4);
     break;
+  }
   case 0b0010100:
     switch (rm) {
     case 0b000:  // FMIN
@@ -953,21 +975,53 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
 }
 
 void op_madd(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rm  = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+  // compute
+  rv->F[rd] = rv->F[rs1] * rv->F[rs2] + rv->F[rs3];
   // step over instruction
   rv->PC += 4;
 }
 
 void op_msub(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rm  = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+  // compute
+  rv->F[rd] = rv->F[rs1] * rv->F[rs2] - rv->F[rs3];
   // step over instruction
   rv->PC += 4;
 }
 
 void op_nmsub(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rm  = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+  // compute
+  rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) + rv->F[rs3];
   // step over instruction
   rv->PC += 4;
 }
 
 void op_nmadd(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rm  = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+  // compute
+  rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) - rv->F[rs3];
   // step over instruction
   rv->PC += 4;
 }
