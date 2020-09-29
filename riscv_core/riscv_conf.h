@@ -12,4 +12,4 @@
 #define SUPPORT_RV32F     0
 
 // default top of stack address
-#define DEFAULT_STACK_ADDR (0xf0000000 - 32)
+#define DEFAULT_STACK_ADDR (0xFFFFF000)
