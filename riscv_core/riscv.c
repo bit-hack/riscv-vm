@@ -811,7 +811,7 @@ void op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1 = dec_rs1(inst);
   const int32_t imm = dec_itype_imm(inst);
   // calculate load address
-  const uint32_t addr = rs1 + imm;
+  const uint32_t addr = rv->X[rs1] + imm;
   // copy into the float register
   const uint32_t data = rv->io.mem_read_w(rv, addr);
   memcpy(rv->F + rd, &data, 4);
@@ -824,7 +824,7 @@ void op_store_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs2 = dec_rs2(inst);
   const int32_t imm = dec_stype_imm(inst);
   // calculate store address
-  const uint32_t addr = rs1 + imm;
+  const uint32_t addr = rv->X[rs1] + imm;
   // copy from float registers
   uint32_t data;
   memcpy(&data, (const void*)(rv->F + rs2), 4);
@@ -896,7 +896,7 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
     switch (rm) {
     case 0b000:  // FMV.X.W
       // bit exact copy between register files
-      memcpy(rv->F + rd, rv->X + rs1, 4);
+      memcpy(rv->X + rd, rv->F + rs1, 4);
       break;
     case 0b001:  // FCLASS.S
       {
@@ -938,7 +938,7 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
     break;
   case 0b1111000:  // FMV.W.X
     // bit exact copy between register files
-    memcpy(rv->X + rd, rv->F + rs1, 4);
+    memcpy(rv->F + rd, rv->X + rs1, 4);
     break;
   default:
     assert(!"unreachable");
