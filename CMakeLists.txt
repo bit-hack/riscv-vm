@@ -2,14 +2,23 @@ cmake_minimum_required(VERSION 3.0)
 project(riscv)
 set(CMAKE_CXX_STANDARD 14)
 
-option(USE_SDL "Use SDL for video and input services" OFF)
+option(RVM_USE_SDL "Use SDL for video and input services" OFF)
+option(RVM_STRICT "Enable strict compiler warnings" OFF)
 
-if (${USE_SDL})
+if (${RVM_USE_SDL})
     find_package(SDL REQUIRED)
     include_directories(${SDL_INCLUDE_DIR})
     add_definitions(-DRISCV_VM_USE_SDL=1)
 else()
     add_definitions(-DRISCV_VM_USE_SDL=0)
+endif()
+
+if (${RVM_STRICT})
+    if (MSVC)
+        add_compile_options(/W4 /WX)
+    else()
+        add_compile_options(-Wall -Wextra -pedantic -Werror)
+    endif()
 endif()
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -35,6 +44,6 @@ set(DRV_SRC
 add_executable(riscv_vm ${DRV_SRC})
 target_link_libraries(riscv_vm riscv_core)
 
-if (${USE_SDL})
+if (${RVM_USE_SDL})
     target_link_libraries(riscv_vm ${SDL_LIBRARY})
 endif()

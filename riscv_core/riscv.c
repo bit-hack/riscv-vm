@@ -794,10 +794,11 @@ enum {
 };
 
 static uint32_t calc_fclass(uint32_t f) {
-
   const uint32_t sign = f & FMASK_SIGN;
   const uint32_t expn = f & FMASK_EXPN;
   const uint32_t frac = f & FMASK_FRAC;
+
+  // note: this could be turned into a binary decision tree for speed
 
   uint32_t out = 0;
   // 0x001    rs1 is -INF
