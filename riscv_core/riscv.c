@@ -1023,6 +1023,8 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
   // set the reset address
   rv->PC = pc;
+  // set the default stack pointer
+  rv->X[rv_reg_sp] = DEFAULT_STACK_ADDR;
   // reset exception state
   rv->exception = rv_except_none;
   // reset the csrs

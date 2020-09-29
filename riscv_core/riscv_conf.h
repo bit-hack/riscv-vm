@@ -10,3 +10,6 @@
 #define SUPPORT_RV32A     1
 // enable RV32F
 #define SUPPORT_RV32F     0
+
+// default top of stack address
+#define DEFAULT_STACK_ADDR (0xf0000000 - 32)
