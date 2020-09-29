@@ -815,6 +815,8 @@ void op_load_fp(struct riscv_t *rv, uint32_t inst) {
   // copy into the float register
   const uint32_t data = rv->io.mem_read_w(rv, addr);
   memcpy(rv->F + rd, &data, 4);
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_store_fp(struct riscv_t *rv, uint32_t inst) {
@@ -827,6 +829,8 @@ void op_store_fp(struct riscv_t *rv, uint32_t inst) {
   uint32_t data;
   memcpy(&data, (const void*)(rv->F + rs2), 4);
   rv->io.mem_write_w(rv, addr, data);
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_fp(struct riscv_t *rv, uint32_t inst) {
@@ -939,18 +943,28 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
   default:
     assert(!"unreachable");
   }
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_madd(struct riscv_t *rv, uint32_t inst) {
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_msub(struct riscv_t *rv, uint32_t inst) {
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_nmsub(struct riscv_t *rv, uint32_t inst) {
+  // step over instruction
+  rv->PC += 4;
 }
 
 void op_nmadd(struct riscv_t *rv, uint32_t inst) {
+  // step over instruction
+  rv->PC += 4;
 }
 #else
 #define op_load_fp  NULL
