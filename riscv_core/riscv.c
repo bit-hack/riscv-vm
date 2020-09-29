@@ -171,6 +171,10 @@ static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
     return (uint32_t*)(&rv->csr_cycle) + 1;
   case CSR_MSTATUS:
     return (uint32_t*)(&rv->csr_mstatus);
+#if SUPPORT_RV32F
+  case CSR_FCSR:
+    return (uint32_t*)(&rv->csr_fcsr);
+#endif
   default:
     return NULL;
   }
@@ -182,6 +186,7 @@ static bool csr_is_writable(uint32_t csr) {
     return true;
   case CSR_CYCLE:
   case CSR_CYCLEH:
+  case CSR_FCSR:
   default:
     return false;
   }
@@ -883,10 +888,10 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
   case 0b1100000:
     switch (rs2) {
     case 0b00000:  // FCVT.W.S
-      rv->F[rd] = (float)((int32_t)rv->X[rs1]);
+      rv->X[rd] = (int32_t)rv->F[rs1];
       break;
     case 0b00001:  // FCVT.WU.S
-      rv->F[rd] = (float)((uint32_t)rv->X[rs1]);
+      rv->X[rd] = (uint32_t)rv->F[rs1];
       break;
     default:
       assert(!"unreachable");
@@ -927,10 +932,10 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
   case 0b1101000:
     switch (rs2) {
     case 0b00000:  // FCVT.S.W
-      rv->X[rd] = (uint32_t)((int32_t)rv->F[rs1]);
+      rv->F[rd] = (float)(int32_t)rv->X[rs1];
       break;
     case 0b00001:  // FCVT.S.WU
-      rv->X[rd] = ((uint32_t)rv->F[rs1]);
+      rv->F[rd] = (float)(uint32_t)rv->X[rs1];
       break;
     default:
       assert(!"unreachable");
