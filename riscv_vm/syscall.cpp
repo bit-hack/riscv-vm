@@ -93,20 +93,20 @@ void syscall_write(struct riscv_t *rv) {
   riscv_word_t buffer = rv_get_reg(rv, rv_reg_a1);
   riscv_word_t count  = rv_get_reg(rv, rv_reg_a2);
   // read the string that we are printing
-  // TODO: convert to alloca
-  std::array<char, 256> temp;
-  uint32_t size = std::min(count, (uint32_t)temp.size() - 1);
-  s->mem.read((uint8_t*)temp.data(), buffer, size);
-  // enforce trailing end of string
-  temp[size] = '\0';
+  uint8_t *temp = (uint8_t*)alloca(count);
+  s->mem.read((uint8_t*)temp, buffer, count);
   // lookup the file descriptor
   auto itt = s->fd_map.find(int(handle));
   if (itt != s->fd_map.end()) {
     // write out the data
-    size = (uint32_t)fwrite(temp.data(), 1, size, itt->second);
+    size_t written = fwrite(temp, 1, count, itt->second);
+    // return number of bytes written
+    rv_set_reg(rv, rv_reg_a0, (riscv_word_t)written);
   }
-  // return number of bytes written
-  rv_set_reg(rv, rv_reg_a0, size);
+  else {
+    // error
+    rv_set_reg(rv, rv_reg_a0, -1);
+  }
 }
 
 void syscall_exit(struct riscv_t *rv) {
