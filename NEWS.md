@@ -1,6 +1,19 @@
 # RISV-VM News
 
 ----
+### 30 Sept. 2020
+
+Since the last update I have managed to tidy up the SDL code used for the DOOM demo and it has been merged back into master.
+
+At this point I started work on floating point support, which by now is reasonably functional and somewhat tested.  There is missing support for rounding and exceptions being raised in the `fcsr` register as well as verifying correct `NaN` handling.
+
+Something on my list to look at is the `RISCV tests` repository which seemed to contain more tests than the compliance test suite.  Hopefully I can use this to iron out any bugs and missing features in the atomic and float implementations.
+
+To test out the float implementation I added a number of tests and benchmarks to the tests folder, such as the classic `whetstone` and `linpack`.  There are some fun ones too such at the `mandelbrot` test from the always amusing `IOCCC`.
+
+So next steps are looking like more testing, more code cleanups and perhaps another infamous (and more float oriented) demo to follow on from `Doom`.  I also need to rewrite a lot of the README since many notes and build instructions are a little out of date now.
+
+----
 ### 28 Sept. 2020
 
 I hit a milestone of sorts yesterday evening.  I was able to compile and run DOOM on the RISC-VM simulator!  I was very surprised that it was quite so easy to get up and running.  The execution speed is not quite high enough to maintain a decent framerate however.
