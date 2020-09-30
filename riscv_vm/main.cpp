@@ -90,6 +90,9 @@ void run_and_trace(riscv_t *rv, state_t *state, elf_t &elf) {
     printf("%08x  %s\n", pc, (sym ? sym : ""));
     // step instructions
     rv_step(rv, cycles_per_step);
+    if (rv_get_exception(rv) != rv_except_none) {
+      break;
+    }
   }
 }
 
@@ -108,6 +111,9 @@ void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
     }
     // step instructions
     rv_step(rv, cycles_per_step);
+    if (rv_get_exception(rv) != rv_except_none) {
+      break;
+    }
     clocks += cycles_per_step;
   }
 }
@@ -119,6 +125,27 @@ void run(riscv_t *rv, state_t *state, elf_t &elf) {
   for (; !state->done;) {
     // step instructions
     rv_step(rv, cycles_per_step);
+    if (rv_get_exception(rv) != rv_except_none) {
+      break;
+    }
+  }
+}
+
+void print_signature(state_t *state, elf_t &elf) {
+  uint32_t start = 0, end = 0;
+  // use the entire .data section as a fallback
+  elf.get_data_section_range(start, end);
+  // try and access the exact signature range
+  if (const ELF::Elf32_Sym *sym = elf.get_symbol("begin_signature")) {
+    start = sym->st_value;
+  }
+  if (const ELF::Elf32_Sym *sym = elf.get_symbol("end_signature")) {
+    end = sym->st_value;
+  }
+  // dump it word by word
+  for (uint32_t i = start; i < end; i += 4) {
+    uint32_t value = state->mem.read_w(i);
+    printf("%08x\n", value);
   }
 }
 
@@ -190,19 +217,7 @@ int main(int argc, char **args) {
 
   // print execution signature
   if (g_arg_compliance) {
-    uint32_t start = 0, end = 0;
-    if (elf.get_data_section_range(start, end)) {
-      // try and access the exact signature start
-      if (const ELF::Elf32_Sym *sym = elf.get_symbol("begin_signature")) {
-        start = sym->st_value;
-      }
-      // dump the data
-      uint32_t value = 0;
-      for (uint32_t i = start; i <= end; i += 4) {
-        state->mem.read((uint8_t*)&value, i, 4);
-        printf("%08x\n", value);
-      }
-    }
+    print_signature(state.get(), elf);
   }
 
   // delete the VM
