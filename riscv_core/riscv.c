@@ -283,6 +283,10 @@ static void op_load(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  // enforce zero register
+  if (rd == rv_reg_zero) {
+    rv->X[rv_reg_zero] = 0;
+  }
 }
 
 #if SUPPORT_Zifencei
