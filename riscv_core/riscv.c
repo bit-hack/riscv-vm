@@ -820,7 +820,7 @@ static uint32_t calc_fclass(uint32_t f) {
   // 0x040    rs1 is positive normal
   out |= (expn && expn < 0x78000000 && !sign)            ? 0x040 : 0;
   // 0x080    rs1 is +INF
-  out |= (f == 0x7fffffff)                               ? 0x080 : 0;
+  out |= (f == 0x7f800000)                               ? 0x080 : 0;
   // 0x100    rs1 is a signaling NaN
   out |= (expn == FMASK_EXPN && (frac <= 0x7ff) && frac) ? 0x100 : 0;
   // 0x200    rs1 is a quiet NaN
