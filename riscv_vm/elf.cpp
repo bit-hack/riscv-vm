@@ -101,6 +101,7 @@ void elf_t::fill_symbols() {
     const char *sym_name = strtab + sym->st_name;
     // add to the symbol table
     switch (ELF_ST_TYPE(sym->st_info)) {
+    case ELF::STT_NOTYPE:
     case ELF::STT_OBJECT:
     case ELF::STT_FUNC:
       symbols[uint32_t(sym->st_value)] = sym_name;
