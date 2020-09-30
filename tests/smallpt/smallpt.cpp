@@ -25,18 +25,18 @@
      rad(rad_), p(p_), e(e_), c(c_), refl(refl_) {} 
    type_t intersect(const Ray &r) const { // returns distance, 0 if nohit 
      Vec op = p-r.o; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0 
-     type_t t, eps=1e-4, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad; 
+     type_t t, eps=1e-2, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad; 
      if (det<0) return 0; else det=sqrt(det); 
      return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0); 
    } 
  }; 
  Sphere spheres[] = {//Scene: radius, position, emission, color, material 
-   Sphere(1e5, Vec( 1e5+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left 
-   Sphere(1e5, Vec(-1e5+99,40.8,81.6),Vec(),Vec(.25,.25,.75),DIFF),//Rght 
-   Sphere(1e5, Vec(50,40.8, 1e5),     Vec(),Vec(.75,.75,.75),DIFF),//Back 
-   Sphere(1e5, Vec(50,40.8,-1e5+170), Vec(),Vec(),           DIFF),//Frnt 
-   Sphere(1e5, Vec(50, 1e5, 81.6),    Vec(),Vec(.75,.75,.75),DIFF),//Botm 
-   Sphere(1e5, Vec(50,-1e5+81.6,81.6),Vec(),Vec(.75,.75,.75),DIFF),//Top 
+   Sphere(1e4, Vec( 1e4+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left 
+   Sphere(1e4, Vec(-1e4+99,40.8,81.6),Vec(),Vec(.25,.25,.75),DIFF),//Rght 
+   Sphere(1e4, Vec(50,40.8, 1e4),     Vec(),Vec(.75,.75,.75),DIFF),//Back 
+   Sphere(1e4, Vec(50,40.8,-1e4+170), Vec(),Vec(),           DIFF),//Frnt 
+   Sphere(1e4, Vec(50, 1e4, 81.6),    Vec(),Vec(.75,.75,.75),DIFF),//Botm 
+   Sphere(1e4, Vec(50,-1e4+81.6,81.6),Vec(),Vec(.75,.75,.75),DIFF),//Top 
    Sphere(16.5,Vec(27,16.5,47),       Vec(),Vec(1,1,1)*.999, SPEC),//Mirr 
    Sphere(16.5,Vec(73,16.5,78),       Vec(),Vec(1,1,1)*.999, REFR),//Glas 
    Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF) //Lite 
