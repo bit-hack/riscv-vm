@@ -47,6 +47,13 @@ riscv_vm a.out
 
 
 ----
+## Testing
+Please note that while the riscv-vm simulator is provided under the MIT license, any of the materials in the `tests` folder may not be.
+These tests were taken from a wide range of places to give the project a reasonable test coverage.
+If you are the author of any of these tests and are unhappy with its inclusion here then please get in touch and I will remove it from the project and its git history.
+
+
+----
 ## Notes
 
 - Written referencing the `20191214-draft` Volume I: Unprivileged ISA document
