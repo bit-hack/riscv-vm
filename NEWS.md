@@ -14,6 +14,7 @@ It is interesting to see lots of the floating point instructions light up and so
 - The sign swapping instructions do get called.
 - Min/Max never seem to get called.
 - None of the FMA variants get called.
+- fclass doesnt get called.
 
 
 ----
