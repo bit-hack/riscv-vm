@@ -1,4 +1,20 @@
-# RISV-VM News
+# RISCV-VM News
+
+----
+### 01 Sept. 2020
+
+Another fairly significant milestone has been achieved;  I have compiled and successfully run `Quake` on the RISC-VM.  What makes this milestone stand apart from `Doom` is that `Quake` uses floating point math in a lot of areas.  For this reason it feels like a fairly good test of the RV32F support I have been working on.
+
+This time around I did not find any `Quake` port that would be as comparatively simple to port as `generic doom` was.  I rolled up my sleave and knocked out just such a port myself [here](https://github.com/bit-hack/portable_quake).  This involved stripping out everything that was not part of the c standard library, all use of double, undefined behavior and a vast amount of cleanup.  I used the same mechanism to display graphics that had worked for the `Doom` port, the twist being that quake used palletized graphics.
+
+Whats really interesting is that the framerate feels around the same as for the `Doom` demo despite the generational step.  The `Quake` demo runs around 103928000 IPS (~103 MIPS) on average which is a little lower than `Doom`.  I have not investigated yet where the gap comes from or what I can learn from this.
+
+It is interesting to see lots of the floating point instructions light up and some stay strangely dormant, for instance:
+- The `sqrtf` calls do seem to get lowered to the sqrt instruction.
+- The sign swapping instructions do get called.
+- Min/Max never seem to get called.
+- None of the FMA variants get called.
+
 
 ----
 ### 30 Sept. 2020

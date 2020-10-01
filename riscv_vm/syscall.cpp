@@ -58,6 +58,7 @@ enum {
 
 // from syscall_sdl.cpp
 void syscall_draw_frame(struct riscv_t *rv);
+void syscall_draw_frame_pal(struct riscv_t *rv);
 
 namespace {
 
@@ -302,6 +303,9 @@ void syscall_handler(struct riscv_t *rv) {
 #if RISCV_VM_USE_SDL
   case 0xbeef:
     syscall_draw_frame(rv);
+    break;
+  case 0xbabe:
+    syscall_draw_frame_pal(rv);
     break;
 #endif
   default:
