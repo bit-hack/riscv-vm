@@ -1,15 +1,25 @@
 #pragma once
 
 // enable RV32M
-#define SUPPORT_RV32M     1
+#ifndef RISCV_VM_SUPPORT_RV32M
+#define RISCV_VM_SUPPORT_RV32M     1
+#endif
 // enable RV32 Zicsr
-#define SUPPORT_Zicsr     1
+#ifndef RISCV_VM_SUPPORT_Zicsr
+#define RISCV_VM_SUPPORT_Zicsr     1
+#endif
 // enable RV32 Zifencei
-#define SUPPORT_Zifencei  1
+#ifndef RISCV_VM_SUPPORT_Zifencei
+#define RISCV_VM_SUPPORT_Zifencei  1
+#endif
 // enable RV32A
-#define SUPPORT_RV32A     1
+#ifndef RISCV_VM_SUPPORT_RV32A
+#define RISCV_VM_SUPPORT_RV32A     1
+#endif
 // enable RV32F
-#define SUPPORT_RV32F     1
+#ifndef RISCV_VM_SUPPORT_RV32F
+#define RISCV_VM_SUPPORT_RV32F     1
+#endif
 
 // default top of stack address
 #define DEFAULT_STACK_ADDR (0xFFFFF000)
