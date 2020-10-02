@@ -42,7 +42,12 @@ static const char *reg_name_x64(uint32_t reg) {
 }
 
 static void gen_get_reg(struct riscv_t *rv, uint32_t x64_reg, uint32_t riscv_reg) {
-  printf("mov %s, rv->X[%u]\n", reg_name_x64(x64_reg), riscv_reg);
+  if (riscv_reg == rv_reg_zero) {
+    printf("xor %s, %s\n", reg_name_x64(x64_reg), reg_name_x64(x64_reg));
+  }
+  else {
+    printf("mov %s, rv->X[%u]\n", reg_name_x64(x64_reg), riscv_reg);
+  }
 }
 
 static void gen_get_imm(struct riscv_t *rv, uint32_t x64_reg, uint32_t imm) {
@@ -50,7 +55,9 @@ static void gen_get_imm(struct riscv_t *rv, uint32_t x64_reg, uint32_t imm) {
 }
 
 static void gen_set_reg(struct riscv_t *rv, uint32_t riscv_reg, uint32_t x64_reg) {
-  printf("mov rv->X[%u], %s\n", riscv_reg, reg_name_x64(x64_reg));
+  if (riscv_reg != rv_reg_zero) {
+    printf("mov rv->X[%u], %s\n", riscv_reg, reg_name_x64(x64_reg));
+  }
 }
 
 static void gen_get_pc(struct riscv_t *rv, uint32_t x64_reg) {
@@ -71,6 +78,21 @@ static void gen_add_reg_immu(uint32_t x64_dst, uint32_t imm) {
 
 static void gen_set_reg_immu(struct riscv_t *rv, uint32_t x64_dst, uint32_t imm) {
   printf("mov %s, %u\n", reg_name_x64(x64_dst), imm);
+}
+
+static void gen_emit_byte(uint8_t op) {
+  //
+}
+
+static void gen_emit_data(uint8_t *ptr, uint32_t size) {
+  //
+}
+
+static void gen_mov_rax_imm(uint32_t imm) {
+  gen_emit_byte(0x48);
+  gen_emit_byte(0xc7);
+  gen_emit_byte(0xc0);
+  gen_emit_data(&imm, 4);
 }
 
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
@@ -279,6 +301,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b000: // ADD
       // rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
       printf("add rax, rcx\n");
+      gen_emit_data("\x48\x21\xC8", 3);  // and rax, rcx
       break;
     case 0b001: // SLL
       // rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
@@ -300,6 +323,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b100: // XOR
       // rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
       printf("xor rax, rcx\n");
+      gen_emit_data("\x48\x31\xC8", 3); // xor rax, rcx
       break;
     case 0b101: // SRL
       // rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
@@ -309,10 +333,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b110: // OR
       // rv->X[rd] = rv->X[rs1] | rv->X[rs2];
       printf("or rax, rcx\n");
+      gen_emit_data("\x48\x09\xC8", 3); // or rax, rcx
       break;
     case 0b111: // AND
       // rv->X[rd] = rv->X[rs1] & rv->X[rs2];
       printf("and rax, rcx\n");
+      gen_emit_data("\x48\x21\xC8", 3); // and rax, rcx
       break;
     default:
       assert(!"unreachable");
@@ -324,11 +350,14 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b000: // SUB
       // rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
       printf("sub rax, rcx\n");
+      gen_emit_data("\x48\x29\xC8", 3);  // sub rax, rcx
       break;
     case 0b101: // SRA
       // rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
       printf("and cx, 0x1f");
       printf("sar rax, cx\n");
+      gen_emit_data("\x66\x83\xE1\x1F", 4);   // and cx, 0x1f
+      gen_emit_data("\x48\xD3\xF8", 3);       // sar rax, cl
       break;
     default:
       assert(!"unreachable");
@@ -382,6 +411,7 @@ static bool op_branch(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   gen_get_reg(rv, x64_rcx, rs2);
   // compare
   printf("cmp rax, rcx\n");
+  gen_emit_data("\x48\x39\xC8", 3);   // cmp rax, rcx
   // dispatch by branch type
   switch (func3) {
   case 0: // BEQ
@@ -434,7 +464,8 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // rv->PC = (rv->X[rs1] + imm) & ~1u;
   gen_get_reg(rv, x64_rax, rs1);
   gen_add_reg_imm(x64_rax, imm);
-  printf("and al, 0xFE");
+  printf("and al, 0xfe");
+  gen_emit_data("\x24\xfe", 2);  // and al, 0xfe
   gen_set_pc(rv, x64_rax);
 
   // link
@@ -579,10 +610,14 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!op(rv, inst, block)) {
       break;
     }
+
+    // XXX: for testing
+    break;
   }
 
   // finalize the basic block
   printf("ret\n");
+  gen_emit_byte("\c3");  // ret
 }
 
 bool rv_step_jit(struct riscv_t *rv) {
