@@ -900,6 +900,14 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
 void rv_step(struct riscv_t *rv, uint32_t cycles) {
   assert(rv);
   while (cycles-- && !rv->exception) {
+
+#if RISCV_VM_X64_JIT
+    // XXX: just testing translation currently
+    if (!rv_step_jit(rv)) {
+      // emulate until jump
+    }
+#endif
+
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
     const uint32_t index = (inst & INST_6_2) >> 2;

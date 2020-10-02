@@ -4,6 +4,13 @@ set(CMAKE_CXX_STANDARD 14)
 
 option(RVVM_STRICT "Enable strict compiler warnings" OFF)
 
+option(RVVM_X64_JIT "Enable x64 JIT" ON)
+if (${RVVM_X64_JIT})
+    add_definitions(-DRISCV_VM_X64_JIT=1)
+else()
+    add_definitions(-DRISCV_VM_X64_JIT=0)
+endif()
+
 option(RVVM_SUPPORT_RV32M "Enable RV32M ISA" ON)
 if (${RVVM_SUPPORT_RV32M})
     add_definitions(-DRISCV_VM_SUPPORT_RV32M=1)
@@ -64,6 +71,7 @@ set(LIB_SRC
     "riscv_core/riscv_conf.h"
     "riscv_core/riscv_private.h"
     "riscv_core/riscv_common.c"
+    "riscv_core/riscv_jit.c"
     )
 add_library(riscv_core ${LIB_SRC})
 

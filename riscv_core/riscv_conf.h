@@ -20,6 +20,10 @@
 #ifndef RISCV_VM_SUPPORT_RV32F
 #define RISCV_VM_SUPPORT_RV32F     1
 #endif
+// enable x64 JIT
+#ifndef RISCV_VM_X64_JIT
+#define RISCV_VM_X64_JIT           0
+#endif
 
 // default top of stack address
 #define DEFAULT_STACK_ADDR (0xFFFFF000)

@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 
 #include "riscv_conf.h"
 #include "riscv.h"
@@ -166,3 +167,5 @@ static inline uint32_t sign_extend_h(uint32_t x) {
 static inline uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
+
+bool rv_step_jit(struct riscv_t *rv);
