@@ -452,7 +452,7 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
 static void op_jal(struct riscv_t *rv, uint32_t inst) {
   // j-type decode
   const uint32_t rd  = dec_rd(inst);
-  const uint32_t rel = dec_jtype_imm(inst);
+  const int32_t rel = dec_jtype_imm(inst);
   // compute return address
   const uint32_t ra = rv->PC + 4;
   rv->PC += rel;
