@@ -58,6 +58,29 @@ enum {
   //               ....xxxx....xxxx....xxxx....xxxx
 };
 
+// a translated basic block
+struct block_t {
+  // number of instructions encompased
+  uint32_t instructions;
+  // address range of the basic block
+  uint32_t pc_start;
+  uint32_t pc_end;
+  // number of bytes that have been emitted
+  uint32_t head;
+  uint8_t code[];
+};
+
+struct riscv_jit_t {
+  // memory range for code buffer
+  uint8_t *start;
+  uint8_t *end;
+  // code buffer write point
+  uint8_t *head;
+  // block hash map
+  uint32_t block_map_size;
+  struct block_t **block_map;
+};
+
 struct riscv_t {
   // io interface
   struct riscv_io_t io;
@@ -76,6 +99,9 @@ struct riscv_t {
   riscv_float_t F[RV_NUM_REGS];
   uint32_t csr_fcsr;
 #endif  // RISCV_VM_SUPPORT_RV32F
+
+  // jit specific data
+  struct riscv_jit_t jit;
 };
 
 // decode rd field
@@ -168,4 +194,5 @@ static inline uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
 
+bool rv_init_jit(struct riscv_t *rv);
 bool rv_step_jit(struct riscv_t *rv);

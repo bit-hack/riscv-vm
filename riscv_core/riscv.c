@@ -888,12 +888,16 @@ static const opcode_t opcodes[] = {
 struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   assert(io);
   struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
+  memset(rv, 0, sizeof(struct riscv_t));
   // copy over the IO interface
   memcpy(&rv->io, io, sizeof(struct riscv_io_t));
   // copy over the userdata
   rv->userdata = userdata;
   // reset
   rv_reset(rv, 0u);
+  // initalize jit engine
+  rv_init_jit(rv);
+  //
   return rv;
 }
 

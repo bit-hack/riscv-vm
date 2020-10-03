@@ -2,8 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-
-
 #define DEBUG_JIT 0
 
 #if DEBUG_JIT
@@ -11,19 +9,6 @@
 #else
 #define JITPRINTF(...)
 #endif
-
-
-struct block_t {
-  // number of instructions encompased
-  uint32_t instructions;
-  // address range of the basic block
-  uint32_t pc_start;
-  uint32_t pc_end;
-  // number of bytes that have been emitted
-  uint32_t head;
-  uint8_t *code;
-};
-
 
 static void gen_emit_data(struct block_t *block, uint8_t *ptr, uint32_t size) {
   // copy into the code buffer

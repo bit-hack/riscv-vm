@@ -23,6 +23,53 @@
 //    rax, rcx, rdx, r8, r9, r10, r11
 //
 
+static uint32_t wang_hash(uint32_t a) {
+  a = (a ^ 61) ^ (a >> 16);
+  a = a + (a << 3);
+  a = a ^ (a >> 4);
+  a = a * 0x27d4eb2d;
+  a = a ^ (a >> 15);
+  return a;
+}
+
+struct block_t *block_alloc(struct riscv_jit_t *jit) {
+  // place a new block
+  struct block_t *block = (struct block_t *)jit->head;
+  // set the initial block write head
+  block->head = 0;
+  return block;
+}
+
+void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
+  assert(jit && block && jit->head && jit->block_map);
+  // advance the block head ready for the next alloc
+  jit->head = block->code + block->head;
+  // insert into the block map
+  uint32_t index = wang_hash(block->pc_start);
+  const uint32_t mask = jit->block_map_size - 1;
+  for (;; ++index) {
+    if (jit->block_map[index & mask] == NULL) {
+      jit->block_map[index & mask] = block;
+      return;
+    }
+  }
+}
+
+struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
+  assert(jit && jit->block_map);
+  uint32_t index = wang_hash(addr);
+  const uint32_t mask = jit->block_map_size - 1;
+  for (;; ++index) {
+    struct block_t *block = jit->block_map[index & mask];
+    if (block == NULL) {
+      return NULL;
+    }
+    if (block->pc_start == addr) {
+      return block;
+    }
+  }
+}
+
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -578,21 +625,46 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   gen_ret(block);
 }
 
-struct block_t global_block;
-
 bool rv_step_jit(struct riscv_t *rv) {
 
-  if (global_block.code == NULL) {
-    void *ptr = VirtualAlloc(NULL, 1024, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-    global_block.code = ptr;
+  struct block_t *block = block_find(&rv->jit, rv->PC);
+  if (!block) {
+    block = block_alloc(&rv->jit);
+    assert(block);
+    rv_translate_block(rv, block);
+    block_finish(&rv->jit, block);
   }
 
-  rv_translate_block(rv, &global_block);
+  // we should have a block by now
+  assert(block);
 
   // call the translated block
   typedef void(*call_block_t)(void);
-  call_block_t c = (call_block_t)global_block.code;
+  call_block_t c = (call_block_t)block->code;
   c();
+
+  return true;
+}
+
+bool rv_init_jit(struct riscv_t *rv) {
+  static const uint32_t code_size = 1024 * 1024 * 4;
+  static const uint32_t map_size = 1024 * 64;
+
+  struct riscv_jit_t *jit = &rv->jit;
+
+  if (jit->block_map == NULL) {
+    jit->block_map_size = map_size;
+    jit->block_map = malloc(map_size * sizeof(struct block_t*));
+    memset(jit->block_map, 0, map_size * sizeof(struct block_t*));
+  }
+
+  if (jit->start == NULL) {
+    void *ptr = VirtualAlloc(NULL, code_size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    memset(ptr, 0xcc, code_size);
+    jit->start = ptr;
+    jit->end = jit->start + code_size;
+    jit->head = ptr;
+  }
 
   return true;
 }
