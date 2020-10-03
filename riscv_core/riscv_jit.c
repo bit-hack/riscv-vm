@@ -88,6 +88,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   if (rd == rv_reg_zero) {
     // step over instruction
     block->pc_end += 4;
+    block->instructions += 1;
     return true;
   }
 
@@ -146,6 +147,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
   block->pc_end += 4;
+  block->instructions += 1;
   // cant branch
   return true;
 }
@@ -161,6 +163,7 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   if (rd == rv_reg_zero) {
     // step over instruction
     block->pc_end += 4;
+    block->instructions += 1;
     return true;
   }
 
@@ -221,6 +224,7 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
   block->pc_end += 4;
+  block->instructions += 1;
   // cant branch
   return true;
 }
@@ -237,6 +241,7 @@ static bool op_auipc(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   if (rd == rv_reg_zero) {
     // step over instruction
     block->pc_end += 4;
+    block->instructions += 1;
     return true;
   }
 
@@ -246,6 +251,7 @@ static bool op_auipc(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   // step over instruction
   block->pc_end += 4;
+  block->instructions += 1;
   // cant branch
   return true;
 }
@@ -293,11 +299,14 @@ static bool op_store(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
   // step over instruction
   block->pc_end += 4;
+  block->instructions += 1;
   // cant branch
   return true;
 }
 
 static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+  // effective pc
+  const uint32_t pc = block->pc_end;
   // r-type decode
   const uint32_t rd     = dec_rd(inst);
   const uint32_t funct3 = dec_funct3(inst);
@@ -309,6 +318,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   if (rd == rv_reg_zero) {
     // step over instruction
     block->pc_end += 4;
+    block->instructions += 1;
     return true;
   }
 
@@ -394,6 +404,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // const int64_t a = (int32_t)rv->X[rs1];
       // const uint64_t b = rv->X[rs2];
       // rv->X[rd] = ((uint64_t)(a * b)) >> 32;
+
+      // cant translate this instruction - terminate block
+      gen_mov_eax_imm32(block, pc);
+      gen_mov_rv32pc_eax(block, rv);
+      return false;
+
       break;
     case 0b011: // MULHU
       gen_mul_ecx(block);
@@ -412,6 +428,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // else {
       //   rv->X[rd] = dividend / divisor;
       // }
+
+      // cant translate this instruction - terminate block
+      gen_mov_eax_imm32(block, pc);
+      gen_mov_rv32pc_eax(block, rv);
+      return false;
+
     }
     break;
     case 0b101: // DIVU
@@ -424,6 +446,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // else {
       //   rv->X[rd] = dividend / divisor;
       // }
+
+      // cant translate this instruction - terminate block
+      gen_mov_eax_imm32(block, pc);
+      gen_mov_rv32pc_eax(block, rv);
+      return false;
+
     }
     break;
     case 0b110: // REM
@@ -439,6 +467,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // else {
       //   rv->X[rd] = dividend % divisor;
       // }
+
+      // cant translate this instruction - terminate block
+      gen_mov_eax_imm32(block, pc);
+      gen_mov_rv32pc_eax(block, rv);
+      return false;
+
     }
     break;
     case 0b111: // REMU
@@ -451,6 +485,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // else {
       //   rv->X[rd] = dividend % divisor;
       // }
+
+      // cant translate this instruction - terminate block
+      gen_mov_eax_imm32(block, pc);
+      gen_mov_rv32pc_eax(block, rv);
+      return false;
+
     }
     break;
     default:
@@ -467,6 +507,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // rv->X[rd] = rax
   gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // cant branch
   return true;
@@ -482,6 +523,7 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // cant branch
   return true;
@@ -534,6 +576,7 @@ static bool op_branch(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   // load PC with the target
   gen_mov_rv32pc_eax(block, rv);
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // could branch
   return false;
@@ -567,6 +610,7 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // }
 
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // could branch
   return false;
@@ -598,6 +642,7 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // }
 
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // could branch
   return false;
@@ -645,7 +690,10 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
     // TODO: CSRRW, CSRRS, CSRRC
     break;
   default:
-    assert(!"unreachable");
+    // cant translate this instruction - terminate block
+    gen_mov_eax_imm32(block, pc);
+    gen_mov_rv32pc_eax(block, rv);
+    return false;
   }
 
   // step over to next instruction
@@ -654,6 +702,7 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   gen_mov_rv32pc_eax(block, rv);
 
   // step over instruction
+  block->instructions += 1;
   block->pc_end += 4;
   // could branch
   return false;
@@ -690,8 +739,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!op) {
       break;
     }
-    // translate this instructions
-    block->instructions += 1;
     if (!op(rv, inst, block)) {
       break;
     }
