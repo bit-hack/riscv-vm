@@ -69,19 +69,23 @@ static void gen_mov_r9_imm64(struct block_t *block, uint64_t imm) {
 }
 
 static void gen_call_r9(struct block_t *block) {
-  // the caller must allocate space for 4 arguments on the stack prior to
-  // calling.
+  // preserve the original stack frame which seems to be needed by some parts
+  // of the MSCV stdlib.  without this i'd get a segfault.  perhaps it has
+  // something to do with exception handlers and/or unwinding.
   JITPRINTF("push rbp\n");
   JITPRINTF("mov rbp, rsp\n");
   gen_emit_data(block, "\x55\x48\x89\xE5", 4);
-
+  // the caller must allocate space for 4 arguments on the stack prior to
+  // calling.
   JITPRINTF("sub rsp, 32\n");
   gen_emit_data(block, "\x48\x83\xec\x20", 4);
+  // execute the call
   JITPRINTF("call r9\n");
   gen_emit_data(block, "\x41\xff\xd1", 3);
+  // release the stack space we allocated for temp saves
   JITPRINTF("add rsp, 32\n");
   gen_emit_data(block, "\x48\x83\xc4\x20", 4);
-
+  // pop the stack frame
   JITPRINTF("pop rbp\n");
   gen_emit_data(block, "\x5D", 1);
 }

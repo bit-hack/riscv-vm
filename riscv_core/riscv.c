@@ -85,7 +85,7 @@ static inline void raise_exception(struct riscv_t *rv, uint32_t type) {
   rv->exception = type;
 }
 
-static void op_load(struct riscv_t *rv, uint32_t inst) {
+static bool op_load(struct riscv_t *rv, uint32_t inst) {
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
   const uint32_t rs1    = dec_rs1(inst);
@@ -120,18 +120,20 @@ static void op_load(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
 #if RISCV_VM_SUPPORT_Zifencei
-static void op_misc_mem(struct riscv_t *rv, uint32_t inst) {
+static bool op_misc_mem(struct riscv_t *rv, uint32_t inst) {
   // TODO
   rv->PC += 4;
+  return true;
 }
 #else
 #define op_misc_mem NULL
 #endif  // RISCV_VM_SUPPORT_Zifencei
 
-static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
+static bool op_op_imm(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
   const uint32_t rd     = dec_rd(inst);
@@ -180,10 +182,11 @@ static void op_op_imm(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
 // add upper immediate to pc
-static void op_auipc(struct riscv_t *rv, uint32_t inst) {
+static bool op_auipc(struct riscv_t *rv, uint32_t inst) {
   // u-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t val = dec_utype_imm(inst) + rv->PC;
@@ -194,9 +197,10 @@ static void op_auipc(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
-static void op_store(struct riscv_t *rv, uint32_t inst) {
+static bool op_store(struct riscv_t *rv, uint32_t inst) {
   // s-type format
   const int32_t  imm    = dec_stype_imm(inst);
   const uint32_t rs1    = dec_rs1(inst);
@@ -222,9 +226,10 @@ static void op_store(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-static void op_op(struct riscv_t *rv, uint32_t inst) {
+static bool op_op(struct riscv_t *rv, uint32_t inst) {
   // r-type decode
   const uint32_t rd     = dec_rd(inst);
   const uint32_t funct3 = dec_funct3(inst);
@@ -371,9 +376,10 @@ static void op_op(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
-static void op_lui(struct riscv_t *rv, uint32_t inst) {
+static bool op_lui(struct riscv_t *rv, uint32_t inst) {
   // u-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t val = dec_utype_imm(inst);
@@ -384,9 +390,10 @@ static void op_lui(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
-static void op_branch(struct riscv_t *rv, uint32_t inst) {
+static bool op_branch(struct riscv_t *rv, uint32_t inst) {
   // b-type decode
   const uint32_t func3 = dec_funct3(inst);
   const int32_t  imm   = dec_btype_imm(inst);
@@ -428,9 +435,11 @@ static void op_branch(struct riscv_t *rv, uint32_t inst) {
     // step over instruction
     rv->PC += 4;
   }
+  // can branch
+  return false;
 }
 
-static void op_jalr(struct riscv_t *rv, uint32_t inst) {
+static bool op_jalr(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
@@ -447,9 +456,11 @@ static void op_jalr(struct riscv_t *rv, uint32_t inst) {
   if (rv->PC & 0x3) {
     raise_exception(rv, rv_except_inst_misaligned);
   }
+  // can branch
+  return false;
 }
 
-static void op_jal(struct riscv_t *rv, uint32_t inst) {
+static bool op_jal(struct riscv_t *rv, uint32_t inst) {
   // j-type decode
   const uint32_t rd  = dec_rd(inst);
   const int32_t rel = dec_jtype_imm(inst);
@@ -464,9 +475,11 @@ static void op_jal(struct riscv_t *rv, uint32_t inst) {
   if (rv->PC & 0x3) {
     raise_exception(rv, rv_except_inst_misaligned);
   }
+  // can branch
+  return false;
 }
 
-static void op_system(struct riscv_t *rv, uint32_t inst) {
+static bool op_system(struct riscv_t *rv, uint32_t inst) {
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
   const int32_t  csr    = dec_csr(inst);
@@ -513,10 +526,11 @@ static void op_system(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 
 #if RISCV_VM_SUPPORT_RV32A
-static void op_amo(struct riscv_t *rv, uint32_t inst) {
+static bool op_amo(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
@@ -616,6 +630,7 @@ static void op_amo(struct riscv_t *rv, uint32_t inst) {
   if (rd == rv_reg_zero) {
     rv->X[rv_reg_zero] = 0;
   }
+  return true;
 }
 #else
 #define op_amo NULL
@@ -662,7 +677,7 @@ static uint32_t calc_fclass(uint32_t f) {
   return out;
 }
 
-void op_load_fp(struct riscv_t *rv, uint32_t inst) {
+bool op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
   const int32_t imm = dec_itype_imm(inst);
@@ -673,9 +688,10 @@ void op_load_fp(struct riscv_t *rv, uint32_t inst) {
   memcpy(rv->F + rd, &data, 4);
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_store_fp(struct riscv_t *rv, uint32_t inst) {
+bool op_store_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1 = dec_rs1(inst);
   const uint32_t rs2 = dec_rs2(inst);
   const int32_t imm = dec_stype_imm(inst);
@@ -687,9 +703,10 @@ void op_store_fp(struct riscv_t *rv, uint32_t inst) {
   rv->io.mem_write_w(rv, addr, data);
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_fp(struct riscv_t *rv, uint32_t inst) {
+bool op_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
@@ -810,9 +827,10 @@ void op_fp(struct riscv_t *rv, uint32_t inst) {
   }
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_madd(struct riscv_t *rv, uint32_t inst) {
+bool op_madd(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -823,9 +841,10 @@ void op_madd(struct riscv_t *rv, uint32_t inst) {
   rv->F[rd] = rv->F[rs1] * rv->F[rs2] + rv->F[rs3];
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_msub(struct riscv_t *rv, uint32_t inst) {
+bool op_msub(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -836,9 +855,10 @@ void op_msub(struct riscv_t *rv, uint32_t inst) {
   rv->F[rd] = rv->F[rs1] * rv->F[rs2] - rv->F[rs3];
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_nmsub(struct riscv_t *rv, uint32_t inst) {
+bool op_nmsub(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -849,9 +869,10 @@ void op_nmsub(struct riscv_t *rv, uint32_t inst) {
   rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) + rv->F[rs3];
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 
-void op_nmadd(struct riscv_t *rv, uint32_t inst) {
+bool op_nmadd(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -862,6 +883,7 @@ void op_nmadd(struct riscv_t *rv, uint32_t inst) {
   rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) - rv->F[rs3];
   // step over instruction
   rv->PC += 4;
+  return true;
 }
 #else
 #define op_load_fp  NULL
@@ -874,7 +896,7 @@ void op_nmadd(struct riscv_t *rv, uint32_t inst) {
 #endif  // RISCV_VM_SUPPORT_RV32F
 
 // opcode handler type
-typedef void(*opcode_t)(struct riscv_t *rv, uint32_t inst);
+typedef bool(*opcode_t)(struct riscv_t *rv, uint32_t inst);
 
 // opcode dispatch table
 static const opcode_t opcodes[] = {
@@ -904,11 +926,11 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   return rv;
 }
 
+#if RISCV_VM_X64_JIT
 void rv_step(struct riscv_t *rv, uint32_t cycles) {
   assert(rv);
   while (cycles-- && !rv->exception) {
 
-#if RISCV_VM_X64_JIT
     // ask the jit engine to execute
     const uint32_t instructions = rv_step_jit(rv);
     if (instructions) {
@@ -916,8 +938,26 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
       continue;
     }
 
-    // todo: keep running the emulator until we hit a branch
-#endif
+    // emulate until we hit a branch
+    while (cycles-- && !rv->exception) {
+      // fetch the next instruction
+      const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
+      const uint32_t index = (inst & INST_6_2) >> 2;
+      // dispatch this opcode
+      const opcode_t op = opcodes[index];
+      assert(op);
+      if (!op(rv, inst)) {
+        break;
+      }
+      // increment the cycles csr
+      rv->csr_cycle++;
+    }
+  }
+}
+#else
+void rv_step(struct riscv_t *rv, uint32_t cycles) {
+  assert(rv);
+  while (cycles-- && !rv->exception) {
 
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
@@ -925,11 +965,14 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
     // dispatch this opcode
     const opcode_t op = opcodes[index];
     assert(op);
-    op(rv, inst);
+    if (!op(rv, inst)) {
+      // doenst matter
+    }
     // increment the cycles csr
     rv->csr_cycle++;
   }
 }
+#endif
 
 void rv_delete(struct riscv_t *rv) {
   assert(rv);

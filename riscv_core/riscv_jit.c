@@ -704,7 +704,9 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
+
   // could branch
+  // XXX: could set this to true for now
   return false;
 }
 
