@@ -67,7 +67,7 @@ void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   state_t *s = (state_t*)rv_userdata(rv);
   // in compliance testing it seems any `ecall` should abort
   if (g_arg_compliance) {
-    s->done = true;
+    rv_set_exception(rv, rv_except_halt);
     return;
   }
   // pass to the syscall handler
@@ -76,7 +76,7 @@ void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
 
 void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
   state_t *s = (state_t*)rv_userdata(rv);
-  s->done = true;
+  rv_set_exception(rv, rv_except_halt);
 }
 
 // run the core - printing out an instruction trace

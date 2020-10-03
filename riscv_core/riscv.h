@@ -46,6 +46,8 @@ enum {
 enum {
   rv_except_none = 0,
   rv_except_inst_misaligned = 1,
+
+  rv_except_halt = ~0u
 };
 
 struct riscv_t;
@@ -117,6 +119,9 @@ riscv_word_t rv_get_reg(struct riscv_t *, uint32_t reg);
 
 // return any exception asserted
 riscv_exception_t rv_get_exception(struct riscv_t *);
+
+// raise a processor exception
+void rv_set_exception(struct riscv_t *, uint32_t except);
 
 #ifdef __cplusplus
 };  // ifdef __cplusplus

@@ -42,3 +42,7 @@ riscv_word_t rv_get_reg(struct riscv_t *rv, uint32_t reg) {
 riscv_exception_t rv_get_exception(struct riscv_t *rv) {
   return rv->exception;
 }
+
+void rv_set_exception(struct riscv_t *rv, uint32_t except) {
+  rv->exception = except;
+}

@@ -3,6 +3,9 @@
 #include <stdio.h>
 
 
+
+#define DEBUG_JIT 0
+
 #if DEBUG_JIT
 #define JITPRINTF(...) printf(__VA_ARGS__)
 #else
@@ -11,12 +14,14 @@
 
 
 struct block_t {
+  // number of instructions encompased
   uint32_t instructions;
+  // address range of the basic block
   uint32_t pc_start;
   uint32_t pc_end;
-
-  uint8_t *code;
+  // number of bytes that have been emitted
   uint32_t head;
+  uint8_t *code;
 };
 
 

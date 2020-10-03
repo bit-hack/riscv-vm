@@ -580,7 +580,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
 struct block_t global_block;
 
-
 bool rv_step_jit(struct riscv_t *rv) {
 
   if (global_block.code == NULL) {
