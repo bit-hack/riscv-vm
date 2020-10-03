@@ -23,6 +23,7 @@
 //    rax, rcx, rdx, r8, r9, r10, r11
 //
 
+// a hash function is used when mapping addresses to indexes in the block map
 static uint32_t wang_hash(uint32_t a) {
   a = (a ^ 61) ^ (a >> 16);
   a = a + (a << 3);
@@ -32,6 +33,7 @@ static uint32_t wang_hash(uint32_t a) {
   return a;
 }
 
+// allocate a new code block
 struct block_t *block_alloc(struct riscv_jit_t *jit) {
   // place a new block
   struct block_t *block = (struct block_t *)jit->head;
@@ -40,6 +42,7 @@ struct block_t *block_alloc(struct riscv_jit_t *jit) {
   return block;
 }
 
+// finialize a code block and insert into the block map
 void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
   assert(jit && block && jit->head && jit->block_map);
   // advance the block head ready for the next alloc
@@ -55,6 +58,7 @@ void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
   }
 }
 
+// try to locate an already translated block in the block map
 struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
   assert(jit && jit->block_map);
   uint32_t index = wang_hash(addr);
@@ -591,10 +595,8 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   block->pc_end = rv->PC;
   block->head = 0;
 
-  while (true) {
-
+  for (;;) {
     JITPRINTF("// %08xh\n", block->pc_end);
-
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
     const uint32_t index = (inst & INST_6_2) >> 2;
@@ -642,12 +644,14 @@ bool rv_init_jit(struct riscv_t *rv) {
 
   struct riscv_jit_t *jit = &rv->jit;
 
+  // allocate the block map which maps address to blocks
   if (jit->block_map == NULL) {
     jit->block_map_size = map_size;
     jit->block_map = malloc(map_size * sizeof(struct block_t*));
     memset(jit->block_map, 0, map_size * sizeof(struct block_t*));
   }
 
+  // allocate block/code storage space
   if (jit->start == NULL) {
     void *ptr = VirtualAlloc(NULL, code_size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
     memset(ptr, 0xcc, code_size);
