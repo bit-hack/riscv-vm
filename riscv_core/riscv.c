@@ -895,9 +895,12 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   rv->userdata = userdata;
   // reset
   rv_reset(rv, 0u);
+
+#if RISCV_VM_X64_JIT
   // initalize jit engine
   rv_init_jit(rv);
-  //
+#endif
+
   return rv;
 }
 
@@ -906,10 +909,14 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
   while (cycles-- && !rv->exception) {
 
 #if RISCV_VM_X64_JIT
-    // XXX: just testing translation currently
-    if (rv_step_jit(rv)) {
+    // ask the jit engine to execute
+    const uint32_t instructions = rv_step_jit(rv);
+    if (instructions) {
+      rv->csr_cycle += instructions;
       continue;
     }
+
+    // todo: keep running the emulator until we hit a branch
 #endif
 
     // fetch the next instruction

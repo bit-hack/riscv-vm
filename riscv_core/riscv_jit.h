@@ -385,3 +385,13 @@ static void gen_movzx_eax_dl(struct block_t *block) {
   JITPRINTF("movzx eax, dl\n");
   gen_emit_data(block, "\x0f\xb6\xc2", 3);
 }
+
+static void gen_imul_ecx(struct block_t *block) {
+  JITPRINTF("imul ecx\n");
+  gen_emit_data(block, "\xf7\xe9", 2);
+}
+
+static void gen_mul_ecx(struct block_t *block) {
+  JITPRINTF("mul ecx\n");
+  gen_emit_data(block, "\xf7\xe1", 2);
+}

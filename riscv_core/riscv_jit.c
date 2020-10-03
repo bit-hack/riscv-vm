@@ -375,10 +375,92 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       break;
     }
     break;
+
+#if RISCV_VM_SUPPORT_RV32M
+  case 0b0000001:
+    // RV32M instructions
+    switch (funct3) {
+    case 0b000: // MUL
+      gen_imul_ecx(block);
+      break;
+    case 0b001: // MULH
+      gen_imul_ecx(block);
+      gen_mov_eax_edx(block);
+      break;
+    case 0b010: // MULHSU
+      // const int64_t a = (int32_t)rv->X[rs1];
+      // const uint64_t b = rv->X[rs2];
+      // rv->X[rd] = ((uint64_t)(a * b)) >> 32;
+      break;
+    case 0b011: // MULHU
+      gen_mul_ecx(block);
+      gen_mov_eax_edx(block);
+      break;
+    case 0b100: // DIV
+    {
+      // const int32_t dividend = (int32_t)rv->X[rs1];
+      // const int32_t divisor = (int32_t)rv->X[rs2];
+      // if (divisor == 0) {
+      //   rv->X[rd] = ~0u;
+      // }
+      // else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+      //   rv->X[rd] = rv->X[rs1];
+      // }
+      // else {
+      //   rv->X[rd] = dividend / divisor;
+      // }
+    }
+    break;
+    case 0b101: // DIVU
+    {
+      // const uint32_t dividend = rv->X[rs1];
+      // const uint32_t divisor = rv->X[rs2];
+      // if (divisor == 0) {
+      //   rv->X[rd] = ~0u;
+      // }
+      // else {
+      //   rv->X[rd] = dividend / divisor;
+      // }
+    }
+    break;
+    case 0b110: // REM
+    {
+      // const int32_t dividend = rv->X[rs1];
+      // const int32_t divisor = rv->X[rs2];
+      // if (divisor == 0) {
+      //   rv->X[rd] = dividend;
+      // }
+      // else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+      //   rv->X[rd] = 0;
+      // }
+      // else {
+      //   rv->X[rd] = dividend % divisor;
+      // }
+    }
+    break;
+    case 0b111: // REMU
+    {
+      // const uint32_t dividend = rv->X[rs1];
+      // const uint32_t divisor = rv->X[rs2];
+      // if (divisor == 0) {
+      //   rv->X[rd] = dividend;
+      // }
+      // else {
+      //   rv->X[rd] = dividend % divisor;
+      // }
+    }
+    break;
+    default:
+      assert(!"unreachable");
+      break;
+    }
+    break;
+#endif  // RISCV_VM_SUPPORT_RV32M
   default:
     assert(!"unreachable");
     break;
   }
+
   // rv->X[rd] = rax
   gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
@@ -616,7 +698,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   gen_ret(block);
 }
 
-bool rv_step_jit(struct riscv_t *rv) {
+uint32_t rv_step_jit(struct riscv_t *rv) {
 
   // lookup a block for this PC
   struct block_t *block = block_find(&rv->jit, rv->PC);
@@ -635,7 +717,8 @@ bool rv_step_jit(struct riscv_t *rv) {
   call_block_t c = (call_block_t)block->code;
   c();
 
-  return true;
+  // return number of instructions executed
+  return block->instructions;
 }
 
 bool rv_init_jit(struct riscv_t *rv) {

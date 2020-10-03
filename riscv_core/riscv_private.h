@@ -195,4 +195,4 @@ static inline uint32_t sign_extend_b(uint32_t x) {
 }
 
 bool rv_init_jit(struct riscv_t *rv);
-bool rv_step_jit(struct riscv_t *rv);
+uint32_t rv_step_jit(struct riscv_t *rv);
