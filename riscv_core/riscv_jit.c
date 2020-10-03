@@ -11,18 +11,17 @@
 #include "riscv_jit.h"
 
 
-// calling convention
+//  Windows X64 calling convention
 //
-//    args:
-//      1   rcx
-//      2   rdx
-//      3   r8
-//      4   r9
+//  args:
+//    1   rcx
+//    2   rdx
+//    3   r8
+//    4   r9
 //
-//    volatile registers:
-//      rax, rcx, rdx, r8, r9, r10, r11
+//  volatile registers:
+//    rax, rcx, rdx, r8, r9, r10, r11
 //
-
 
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // itype format
@@ -30,6 +29,13 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t funct3 = dec_funct3(inst);
   const uint32_t rd     = dec_rd(inst);
+
+  // skip writes to the zero register
+  if (rd == rv_reg_zero) {
+    // step over instruction
+    block->pc_end += 4;
+    return true;
+  }
 
   // move rv into arg1
   gen_mov_rcx_imm64(block, (uint64_t)rv);
@@ -83,9 +89,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     break;
   }
   // rv->X[rd] = rax
-  if (rd != rv_reg_zero) {
-    gen_mov_rv32reg_eax(block, rv, rd);
-  }
+  gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
   block->pc_end += 4;
   // cant branch
@@ -98,6 +102,14 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t funct3 = dec_funct3(inst);
+
+  // skip any writes to the zero register
+  if (rd == rv_reg_zero) {
+    // step over instruction
+    block->pc_end += 4;
+    return true;
+  }
+
   // eax = rv->X[rs1]
   gen_mov_eax_rv32reg(block, rv, rs1);
 
@@ -152,9 +164,7 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
     break;
   }
   // rv->X[rd] = eax
-  if (rd != rv_reg_zero) {
-    gen_mov_rv32reg_eax(block, rv, rd);
-  }
+  gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
   block->pc_end += 4;
   // cant branch
@@ -168,12 +178,19 @@ static bool op_auipc(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // u-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t imm = dec_utype_imm(inst);
+
+  // skip any writes to the zero register
+  if (rd == rv_reg_zero) {
+    // step over instruction
+    block->pc_end += 4;
+    return true;
+  }
+
   // rv->X[rd] = imm + rv->PC;
   gen_mov_eax_rv32pc(block, rv);
   gen_add_eax_imm32(block, imm);
-  if (rd != rv_reg_zero) {
-    gen_mov_rv32reg_eax(block, rv, rd);
-  }
+  gen_mov_rv32reg_eax(block, rv, rd);
+
   // step over instruction
   block->pc_end += 4;
   // cant branch
@@ -234,6 +251,13 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct7 = dec_funct7(inst);
+
+  // skip any writes to the zero register
+  if (rd == rv_reg_zero) {
+    // step over instruction
+    block->pc_end += 4;
+    return true;
+  }
 
   // get operands
   gen_mov_eax_rv32reg(block, rv, rs1);
@@ -306,9 +330,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     break;
   }
   // rv->X[rd] = rax
-  if (rd != rv_reg_zero) {
-    gen_mov_rv32reg_eax(block, rv, rd);
-  }
+  gen_mov_rv32reg_eax(block, rv, rd);
   // step over instruction
   block->pc_end += 4;
   // cant branch
@@ -390,21 +412,14 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs1 = dec_rs1(inst);
   const int32_t  imm = dec_itype_imm(inst);
 
-  // compute return address
-  // const uint32_t ra = rv->PC + 4;
-
   // jump
-  // rv->PC = (rv->X[rs1] + imm) & ~1u;
+  // note: we also clear the least significant bit of pc
   gen_mov_eax_rv32reg(block, rv, rs1);
   gen_add_eax_imm32(block, imm);
   gen_and_eax_imm32(block, 0xfffffffe);
   gen_mov_rv32pc_eax(block, rv);
 
   // link
-  // if (rd != rv_reg_zero) {
-  //   rv->X[rd] = ra;
-  // }
-
   if (rd != rv_reg_zero) {
     const uint32_t ret_addr = pc + 4;
     gen_mov_eax_imm32(block, ret_addr);
@@ -429,20 +444,13 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rd  = dec_rd(inst);
   const int32_t rel = dec_jtype_imm(inst);
 
-  // compute return address
-  // const uint32_t ra = rv->PC + 4;
-
   // jump
-  // rv->PC += rel;
+  // XXX: do we need to align?
   gen_mov_eax_rv32pc(block, rv);
   gen_add_eax_imm32(block, rel);
   gen_mov_rv32pc_eax(block, rv);
 
   // link
-  // if (rd != rv_reg_zero) {
-  //   rv->X[rd] = ra;
-  // }
-
   if (rd != rv_reg_zero) {
     const uint32_t ret_addr = pc + 4;
     gen_mov_eax_imm32(block, ret_addr);
@@ -539,7 +547,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
   while (true) {
 
-    printf("// %08xh\n", block->pc_end);
+    JITPRINTF("// %08xh\n", block->pc_end);
 
     // XXX: temp
     const uint32_t pc = block->pc_end;
