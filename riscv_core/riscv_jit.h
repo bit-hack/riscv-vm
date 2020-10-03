@@ -288,8 +288,8 @@ static void gen_and_cl_imm8(struct block_t *block, uint8_t imm) {
 }
 
 static void gen_shl_eax_cl(struct block_t *block) {
-  JITPRINTF("shr eax, cl\n");
-  gen_emit_data(block, "\xd3\xe8", 2);
+  JITPRINTF("shl eax, cl\n");
+  gen_emit_data(block, "\xd3\xe0", 2);
 }
 
 static void gen_sar_eax_cl(struct block_t *block) {
@@ -297,14 +297,14 @@ static void gen_sar_eax_cl(struct block_t *block) {
   gen_emit_data(block, "\xd3\xf8", 2);
 }
 
-static void gen_setb_al(struct block_t *block) {
-  JITPRINTF("setb al\n");
-  gen_emit_data(block, "\x0f\x92\xc0", 3);
+static void gen_setb_dl(struct block_t *block) {
+  JITPRINTF("setb dl\n");
+  gen_emit_data(block, "\x0f\x92\xc2", 3);
 }
 
-static void gen_setl_al(struct block_t *block) {
-  JITPRINTF("setl al\n");
-  gen_emit_data(block, "\x0f\x9c\xc0", 3);
+static void gen_setl_dl(struct block_t *block) {
+  JITPRINTF("setl dl\n");
+  gen_emit_data(block, "\x0f\x9c\xc2", 3);
 }
 
 static void gen_shr_eax_imm8(struct block_t *block, uint8_t imm) {
@@ -374,4 +374,24 @@ static void gen_cmovnb_eax_edx(struct block_t *block) {
 static void gen_ret(struct block_t *block) {
   JITPRINTF("ret\n");
   gen_emit_data(block, "\xc3", 1);
+}
+
+static void gen_xor_edx_edx(struct block_t *block) {
+  JITPRINTF("xor edx, edx\n");
+  gen_emit_data(block, "\x31\xd2", 2);
+}
+
+static void gen_mov_eax_edx(struct block_t *block) {
+  JITPRINTF("mov eax, edx\n");
+  gen_emit_data(block, "\x89\xd0", 2);
+}
+
+static void gen_shr_eax_cl(struct block_t *block) {
+  JITPRINTF("shr eax, cl\n");
+  gen_emit_data(block, "\xd3\xe8", 2);
+}
+
+static void gen_movzx_eax_dl(struct block_t *block) {
+  JITPRINTF("movzx eax, dl\n");
+  gen_emit_data(block, "\x0f\xb6\xc2", 3);
 }

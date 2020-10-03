@@ -126,14 +126,14 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   case 2: // SLTI
     // rv->X[rd] = ((int32_t)(rv->X[rs1]) < imm) ? 1 : 0;
     gen_cmp_eax_imm32(block, imm);
-    gen_xor_eax_eax(block);
-    gen_setl_al(block); // signed
+    gen_setl_dl(block); // signed
+    gen_movzx_eax_dl(block);
     break;
   case 3: // SLTIU
     // rv->X[rd] = (rv->X[rs1] < (uint32_t)imm) ? 1 : 0;
     gen_cmp_eax_imm32(block, imm);
-    gen_xor_eax_eax(block);
-    gen_setb_al(block); // unsigned
+    gen_setb_dl(block); // unsigned
+    gen_movzx_eax_dl(block);
     break;
   case 4: // XORI
     // rv->X[rd] = rv->X[rs1] ^ imm;
@@ -278,14 +278,14 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b010: // SLT
       // rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
       gen_cmp_eax_ecx(block);
-      gen_xor_eax_eax(block);
-      gen_setl_al(block); // signed
+      gen_setl_dl(block); // signed
+      gen_movzx_eax_dl(block);
       break;
     case 0b011: // SLTU
       // rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
       gen_cmp_eax_ecx(block);
-      gen_xor_eax_eax(block);
-      gen_setb_al(block); // unsigned
+      gen_setb_dl(block); // unsigned
+      gen_movzx_eax_dl(block);
       break;
     case 0b100: // XOR
       // rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
@@ -294,7 +294,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b101: // SRL
       // rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
       gen_and_cl_imm8(block, 0x1f);
-      gen_shl_eax_cl(block);
+      gen_shr_eax_cl(block);
       break;
     case 0b110: // OR
       // rv->X[rd] = rv->X[rs1] | rv->X[rs2];
@@ -445,7 +445,8 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const int32_t rel = dec_jtype_imm(inst);
 
   // jump
-  // XXX: do we need to align?
+  // note: rel is aligned to a two byte boundary so we dont needs to do any
+  //       masking here.
   gen_mov_eax_rv32pc(block, rv);
   gen_add_eax_imm32(block, rel);
   gen_mov_rv32pc_eax(block, rv);
@@ -514,7 +515,7 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   }
 
   // step over to next instruction
-  // XXX: this would effectively stop ecall or ebreak changing PC
+  // XXX: this effectively stops ecall or ebreak changing PC
   gen_mov_eax_imm32(block, pc + 4);
   gen_mov_rv32pc_eax(block, rv);
 
