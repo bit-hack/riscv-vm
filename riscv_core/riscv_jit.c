@@ -56,6 +56,9 @@ void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
       return;
     }
   }
+
+  // flush the instructon cache for this block
+  FlushInstructionCache(GetCurrentProcess(), block->code, block->head);
 }
 
 // try to locate an already translated block in the block map
