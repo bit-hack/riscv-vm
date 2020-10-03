@@ -22,7 +22,7 @@
 #endif
 // enable x64 JIT
 #ifndef RISCV_VM_X64_JIT
-#define RISCV_VM_X64_JIT           1
+#define RISCV_VM_X64_JIT           0
 #endif
 
 // default top of stack address

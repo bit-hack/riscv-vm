@@ -4,7 +4,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#if RISCV_VM_X64_JIT
 #include <Windows.h>
+#endif
 
 #include "riscv.h"
 #include "riscv_private.h"
@@ -56,9 +58,10 @@ void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
       return;
     }
   }
-
+#if RISCV_VM_X64_JIT
   // flush the instructon cache for this block
   FlushInstructionCache(GetCurrentProcess(), block->code, block->head);
+#endif
 }
 
 // try to locate an already translated block in the block map
@@ -786,6 +789,7 @@ bool rv_init_jit(struct riscv_t *rv) {
     memset(jit->block_map, 0, map_size * sizeof(struct block_t*));
   }
 
+#if RISCV_VM_X64_JIT
   // allocate block/code storage space
   if (jit->start == NULL) {
     void *ptr = VirtualAlloc(NULL, code_size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
@@ -794,6 +798,7 @@ bool rv_init_jit(struct riscv_t *rv) {
     jit->end = jit->start + code_size;
     jit->head = ptr;
   }
+#endif
 
   return true;
 }

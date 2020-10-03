@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 option(RVVM_STRICT "Enable strict compiler warnings" OFF)
 
-option(RVVM_X64_JIT "Enable x64 JIT" ON)
+option(RVVM_X64_JIT "Enable x64 JIT" OFF)
 if (${RVVM_X64_JIT})
     add_definitions(-DRISCV_VM_X64_JIT=1)
 else()
