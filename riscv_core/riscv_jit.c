@@ -4,96 +4,25 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <Windows.h>
+
 #include "riscv.h"
 #include "riscv_private.h"
+#include "riscv_jit.h"
 
 
-enum {
-  x64_rax,  // volatile       
-  x64_rbx,  // save           
-  x64_rcx,  // volatile       arg1
-  x64_rdx,  // volatile       arg2
-  x64_rdi,  // save           
-  x64_rsi,  // save           
-  x64_rbp,  // save           
-  x64_rsp,  // save           
-  x64_r8,   // volatile       arg3
-  x64_r9,   // volatile       arg4
-  x64_r10,  // volatile       
-  x64_r11,  // volatile       
-  x64_r12,  // save           
-  x64_r13,  // save           
-  x64_r14,  // save           
-  x64_r15,  // save           
-};
+// calling convention
+//
+//    args:
+//      1   rcx
+//      2   rdx
+//      3   r8
+//      4   r9
+//
+//    volatile registers:
+//      rax, rcx, rdx, r8, r9, r10, r11
+//
 
-struct block_t {
-  uint32_t instructions;
-  uint32_t pc_start;
-  uint32_t pc_end;
-};
-
-static const char *reg_name_x64(uint32_t reg) {
-  const char *name[] = {
-    "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "rbp", "rsp", "r8 ", "r9 ",
-    "r10", "r11", "r12", "r13", "r14", "r15",
-  };
-  return name[reg];
-}
-
-static void gen_get_reg(struct riscv_t *rv, uint32_t x64_reg, uint32_t riscv_reg) {
-  if (riscv_reg == rv_reg_zero) {
-    printf("xor %s, %s\n", reg_name_x64(x64_reg), reg_name_x64(x64_reg));
-  }
-  else {
-    printf("mov %s, rv->X[%u]\n", reg_name_x64(x64_reg), riscv_reg);
-  }
-}
-
-static void gen_get_imm(struct riscv_t *rv, uint32_t x64_reg, uint32_t imm) {
-  printf("mov %s, %u\n", reg_name_x64(x64_reg), imm);
-}
-
-static void gen_set_reg(struct riscv_t *rv, uint32_t riscv_reg, uint32_t x64_reg) {
-  if (riscv_reg != rv_reg_zero) {
-    printf("mov rv->X[%u], %s\n", riscv_reg, reg_name_x64(x64_reg));
-  }
-}
-
-static void gen_get_pc(struct riscv_t *rv, uint32_t x64_reg) {
-  printf("mov %s, rv->PC\n", reg_name_x64(x64_reg));
-}
-
-static void gen_set_pc(struct riscv_t *rv, uint32_t x64_reg) {
-  printf("mov rv->PC, %s\n", reg_name_x64(x64_reg));
-}
-
-static void gen_add_reg_imm(uint32_t x64_dst, int32_t imm) {
-  printf("add %s, %d\n", reg_name_x64(x64_dst), imm);
-}
-
-static void gen_add_reg_immu(uint32_t x64_dst, uint32_t imm) {
-  printf("add %s, %d\n", reg_name_x64(x64_dst), imm);
-}
-
-static void gen_set_reg_immu(struct riscv_t *rv, uint32_t x64_dst, uint32_t imm) {
-  printf("mov %s, %u\n", reg_name_x64(x64_dst), imm);
-}
-
-static void gen_emit_byte(uint8_t op) {
-  //
-}
-
-static void gen_emit_data(uint8_t *ptr, uint32_t size) {
-  //
-}
-
-static void gen_mov_rax_imm(uint32_t imm) {
-  gen_emit_byte(0x48);
-  gen_emit_byte(0xc7);
-  gen_emit_byte(0xc0);
-  gen_emit_data(&imm, 4);
-}
 
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // itype format
@@ -101,48 +30,53 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t funct3 = dec_funct3(inst);
   const uint32_t rd     = dec_rd(inst);
-  // load address
+
+  // move rv into arg1
+  gen_mov_rcx_imm64(block, (uint64_t)rv);
+
+  // move load address into arg 2
   // rdx = rv->X[rs1] + imm;
-  gen_get_reg(rv, x64_rdx, rs1);
-  gen_add_reg_imm(x64_rdx, imm);
+  gen_mov_edx_rv32reg(block, rv, rs1);
+  gen_add_edx_imm32(block, imm);
+
   // dispatch by read size
   switch (funct3) {
   case 0: // LB
     // rv->X[rd] = sign_extend_b(rv->io.mem_read_b(rv, addr));
     {
-      printf("mov rcx, rv");
-      printf("call rv->io.mem_read_b");
-      printf("movsx rax, al");
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_read_b);
+      gen_call_r9(block);
+      gen_movsx_eax_al(block);
     }
     break;
   case 1: // LH
     // rv->X[rd] = sign_extend_h(rv->io.mem_read_s(rv, addr));
     {
-      printf("mov rcx, rv");
-      printf("call rv->io.mem_read_s");
-      printf("movsx rax, ax");
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_read_s);
+      gen_call_r9(block);
+      gen_movsx_eax_ax(block);
     }
     break;
   case 2: // LW
     // rv->X[rd] = rv->io.mem_read_w(rv, addr);
     {
-      printf("mov rcx, rv");
-      printf("call rv->io.mem_read_w");
-    }
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_read_w);
+      gen_call_r9(block);
+  }
     break;
   case 4: // LBU
     // rv->X[rd] = rv->io.mem_read_b(rv, addr);
     {
-      printf("mov rcx, rv");
-      printf("call rv->io.mem_read_b");
-    }
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_read_b);
+      gen_call_r9(block);
+  }
     break;
   case 5: // LHU
     // rv->X[rd] = rv->io.mem_read_s(rv, addr);
     {
-      printf("mov rcx, rv");
-      printf("call rv->io.mem_read_s");
-    }
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_read_s);
+      gen_call_r9(block);
+  }
     break;
   default:
     assert(!"unreachable");
@@ -150,7 +84,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
   // rv->X[rd] = rax
   if (rd != rv_reg_zero) {
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
   block->pc_end += 4;
@@ -164,61 +98,62 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t funct3 = dec_funct3(inst);
-  // rax = rv->X[rs1]
-  gen_get_reg(rv, x64_rax, rs1);
+  // eax = rv->X[rs1]
+  gen_mov_eax_rv32reg(block, rv, rs1);
+
   // dispatch operation type
   switch (funct3) {
   case 0: // ADDI
     // rv->X[rd] = (int32_t)(rv->X[rs1]) + imm;
-    printf("add rax, %d\n", imm);
+    gen_add_eax_imm32(block, imm);
     break;
   case 1: // SLLI
     // rv->X[rd] = rv->X[rs1] << (imm & 0x1f);
-    printf("shl rax, %d\n", (imm & 0x1f));
+    gen_shl_eax_imm8(block, imm & 0x1f);
     break;
   case 2: // SLTI
     // rv->X[rd] = ((int32_t)(rv->X[rs1]) < imm) ? 1 : 0;
-    printf("cmp rax, imm\n");
-    printf("xor rax, rax\n");
-    printf("setl rax\n"); // signed
+    gen_cmp_eax_imm32(block, imm);
+    gen_xor_eax_eax(block);
+    gen_setl_al(block); // signed
     break;
   case 3: // SLTIU
     // rv->X[rd] = (rv->X[rs1] < (uint32_t)imm) ? 1 : 0;
-    printf("cmp rax, imm\n");
-    printf("xor rax, rax\n");
-    printf("setb rax\n"); // unsigned
+    gen_cmp_eax_imm32(block, imm);
+    gen_xor_eax_eax(block);
+    gen_setb_al(block); // unsigned
     break;
   case 4: // XORI
     // rv->X[rd] = rv->X[rs1] ^ imm;
-    printf("xor rax, %08xh\n", imm);
+    gen_xor_eax_imm32(block, imm);
     break;
   case 5:
     if (imm & ~0x1f) {
       // SRAI
       // rv->X[rd] = ((int32_t)rv->X[rs1]) >> (imm & 0x1f);
-      printf("sar rax, %d\n", (imm & 0x1f));
+      gen_sar_eax_imm8(block, imm & 0x1f);
     }
     else {
       // SRLI
       // rv->X[rd] = rv->X[rs1] >> (imm & 0x1f);
-      printf("shr rax, %d\n", (imm & 0x1f));
+      gen_shr_eax_imm8(block, imm & 0x1f);
     }
     break;
   case 6: // ORI
     // rv->X[rd] = rv->X[rs1] | imm;
-    printf("or rax, %08xh\n", imm);
+    gen_or_eax_imm32(block, imm);
     break;
   case 7: // ANDI
     // rv->X[rd] = rv->X[rs1] & imm;
-    printf("and rax, %08xh\n", imm);
+    gen_and_eax_imm32(block, imm);
     break;
   default:
     assert(!"unreachable");
     break;
   }
-  // rv->X[rd] = rax
+  // rv->X[rd] = eax
   if (rd != rv_reg_zero) {
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
   block->pc_end += 4;
@@ -234,10 +169,10 @@ static bool op_auipc(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t imm = dec_utype_imm(inst);
   // rv->X[rd] = imm + rv->PC;
-  gen_get_pc(rv, x64_rax);
-  gen_add_reg_immu(x64_rax, imm);
+  gen_mov_eax_rv32pc(block, rv);
+  gen_add_eax_imm32(block, imm);
   if (rd != rv_reg_zero) {
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
   block->pc_end += 4;
@@ -251,26 +186,36 @@ static bool op_store(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct3 = dec_funct3(inst);
-  // store address
-  printf("mov rax, rv\n");
+
+  // arg1
+  gen_mov_rcx_imm64(block, (uint64_t)rv);
+
+  // arg2
   // const uint32_t addr = rv->X[rs1] + imm;
-  gen_get_reg(rv, x64_rdx, rs1);
-  gen_add_reg_imm(x64_rdx, imm);
+  gen_xor_rdx_rdx(block);
+  gen_mov_edx_rv32reg(block, rv, rs1);
+  gen_add_edx_imm32(block, imm);
+
+  // arg3
   // const uint32_t data = rv->X[rs2];
-  gen_get_reg(rv, x64_r8, rs2);
+  gen_mov_r8_rv32reg(block, rv, rs2);
+
   // dispatch by write size
   switch (funct3) {
   case 0: // SB
     // rv->io.mem_write_b(rv, addr, data);
-    printf("call rv->io.mem_write_b\n");
+    gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_write_b);
+    gen_call_r9(block);
     break;
   case 1: // SH
     // rv->io.mem_write_s(rv, addr, data);
-    printf("call rv->io.mem_write_s\n");
+    gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_write_s);
+    gen_call_r9(block);
     break;
   case 2: // SW
     // rv->io.mem_write_w(rv, addr, data);
-    printf("call rv->io.mem_write_w\n");
+    gen_mov_r9_imm64(block, (uint64_t)rv->io.mem_write_w);
+    gen_call_r9(block);
     break;
   default:
     assert(!"unreachable");
@@ -290,55 +235,50 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct7 = dec_funct7(inst);
 
-  // rs1
-  gen_get_reg(rv, x64_rax, rs1);
-  // rs2
-  gen_get_reg(rv, x64_rcx, rs2);
+  // get operands
+  gen_mov_eax_rv32reg(block, rv, rs1);
+  gen_mov_ecx_rv32reg(block, rv, rs2);
 
   switch (funct7) {
   case 0b0000000:
     switch (funct3) {
     case 0b000: // ADD
       // rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
-      printf("add rax, rcx\n");
-      gen_emit_data("\x48\x21\xC8", 3);  // and rax, rcx
+      gen_add_eax_ecx(block);
       break;
     case 0b001: // SLL
       // rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
-      printf("and cx, 0x1f\n");
-      printf("shl rax, cx\n");
+      gen_and_cl_imm8(block, 0x1f);
+      gen_shl_eax_cl(block);
       break;
     case 0b010: // SLT
       // rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
-      printf("cmp rax, rcx\n");
-      printf("xor rax, rax\n");
-      printf("setl ax\n"); // signed
+      gen_cmp_eax_ecx(block);
+      gen_xor_eax_eax(block);
+      gen_setl_al(block); // signed
       break;
     case 0b011: // SLTU
       // rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
-      printf("cmp rax, rcx\n");
-      printf("xor rax, rax\n");
-      printf("setb ax\n"); // unsigned
+      gen_cmp_eax_ecx(block);
+      gen_xor_eax_eax(block);
+      gen_setb_al(block); // unsigned
       break;
     case 0b100: // XOR
       // rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
-      printf("xor rax, rcx\n");
-      gen_emit_data("\x48\x31\xC8", 3); // xor rax, rcx
+      gen_xor_eax_ecx(block);
       break;
     case 0b101: // SRL
       // rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
-      printf("and cx, 0x1f\n");
-      printf("shr rax, cx\n");
+      gen_and_cl_imm8(block, 0x1f);
+      gen_shl_eax_cl(block);
       break;
     case 0b110: // OR
       // rv->X[rd] = rv->X[rs1] | rv->X[rs2];
-      printf("or rax, rcx\n");
-      gen_emit_data("\x48\x09\xC8", 3); // or rax, rcx
+      gen_or_eax_ecx(block);
       break;
     case 0b111: // AND
       // rv->X[rd] = rv->X[rs1] & rv->X[rs2];
-      printf("and rax, rcx\n");
-      gen_emit_data("\x48\x21\xC8", 3); // and rax, rcx
+      gen_and_eax_ecx(block);
       break;
     default:
       assert(!"unreachable");
@@ -349,15 +289,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     switch (funct3) {
     case 0b000: // SUB
       // rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
-      printf("sub rax, rcx\n");
-      gen_emit_data("\x48\x29\xC8", 3);  // sub rax, rcx
+      gen_sub_eax_ecx(block);
       break;
     case 0b101: // SRA
       // rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
-      printf("and cx, 0x1f");
-      printf("sar rax, cx\n");
-      gen_emit_data("\x66\x83\xE1\x1F", 4);   // and cx, 0x1f
-      gen_emit_data("\x48\xD3\xF8", 3);       // sar rax, cl
+      gen_and_cl_imm8(block, 0x1f);
+      gen_sar_eax_cl(block);
       break;
     default:
       assert(!"unreachable");
@@ -370,7 +307,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
   // rv->X[rd] = rax
   if (rd != rv_reg_zero) {
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
   block->pc_end += 4;
@@ -384,8 +321,8 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t val = dec_utype_imm(inst);
   // rv->X[rd] = val;
   if (rd != rv_reg_zero) {
-    printf("mov rax, %02xh\n", val);
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_eax_imm32(block, val);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
   // step over instruction
   block->pc_end += 4;
@@ -401,48 +338,44 @@ static bool op_branch(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   const int32_t  imm   = dec_btype_imm(inst);
   const uint32_t rs1   = dec_rs1(inst);
   const uint32_t rs2   = dec_rs2(inst);
-  // jump target
-  const uint32_t target = pc + imm;
-  // r8 = pc + 4
-  gen_set_reg_immu(rv, x64_r8, pc + 4);
-  // rs1
-  gen_get_reg(rv, x64_rax, rs1);
-  // rs2
-  gen_get_reg(rv, x64_rcx, rs2);
-  // compare
-  printf("cmp rax, rcx\n");
-  gen_emit_data("\x48\x39\xC8", 3);   // cmp rax, rcx
+  // perform the compare
+  gen_mov_eax_rv32reg(block, rv, rs1);
+  gen_mov_ecx_rv32reg(block, rv, rs2);
+  gen_cmp_eax_ecx(block);
+  // load both targets
+  gen_mov_eax_imm32(block, pc + 4);
+  gen_mov_edx_imm32(block, pc + imm);
   // dispatch by branch type
   switch (func3) {
   case 0: // BEQ
     // taken = (rv->X[rs1] == rv->X[rs2]);
-    printf("cmove r8, %02xh\n", target);
+    gen_cmove_eax_edx(block);
     break;
   case 1: // BNE
     // taken = (rv->X[rs1] != rv->X[rs2]);
-    printf("cmovne r8, %02xh\n", target);
+    gen_cmovne_eax_edx(block);
     break;
   case 4: // BLT
     // taken = ((int32_t)rv->X[rs1] < (int32_t)rv->X[rs2]);
-    printf("cmovlt r8, %02xh\n", target);
+    gen_cmovl_eax_edx(block);
     break;
   case 5: // BGE
     // taken = ((int32_t)rv->X[rs1] >= (int32_t)rv->X[rs2]);
-    printf("cmovge r8, %02xh\n", target);
+    gen_cmovge_eax_edx(block);
     break;
   case 6: // BLTU
     // taken = (rv->X[rs1] < rv->X[rs2]);
-    printf("cmovb r8, %02xh\n", target);
+    gen_cmovb_eax_edx(block);
     break;
   case 7: // BGEU
     // taken = (rv->X[rs1] >= rv->X[rs2]);
-    printf("cmovnb r8, %02xh\n", target);
+    gen_cmovnb_eax_edx(block);
     break;
   default:
     assert(!"unreachable");
   }
   // load PC with the target
-  gen_set_pc(rv, x64_r8);
+  gen_mov_rv32pc_eax(block, rv);
   // step over instruction
   block->pc_end += 4;
   // could branch
@@ -462,11 +395,10 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   // jump
   // rv->PC = (rv->X[rs1] + imm) & ~1u;
-  gen_get_reg(rv, x64_rax, rs1);
-  gen_add_reg_imm(x64_rax, imm);
-  printf("and al, 0xfe");
-  gen_emit_data("\x24\xfe", 2);  // and al, 0xfe
-  gen_set_pc(rv, x64_rax);
+  gen_mov_eax_rv32reg(block, rv, rs1);
+  gen_add_eax_imm32(block, imm);
+  gen_and_eax_imm32(block, 0xfffffffe);
+  gen_mov_rv32pc_eax(block, rv);
 
   // link
   // if (rd != rv_reg_zero) {
@@ -475,8 +407,8 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   if (rd != rv_reg_zero) {
     const uint32_t ret_addr = pc + 4;
-    printf("mov rax, %02xh\n", ret_addr);
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_eax_imm32(block, ret_addr);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
 
   // check for exception
@@ -502,9 +434,9 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   // jump
   // rv->PC += rel;
-  gen_get_pc(rv, x64_rax);
-  gen_add_reg_imm(rel, rel);
-  gen_set_pc(rv, x64_rax);
+  gen_mov_eax_rv32pc(block, rv);
+  gen_add_eax_imm32(block, rel);
+  gen_mov_rv32pc_eax(block, rv);
 
   // link
   // if (rd != rv_reg_zero) {
@@ -513,8 +445,8 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   if (rd != rv_reg_zero) {
     const uint32_t ret_addr = pc + 4;
-    printf("mov rax, %02xh\n", ret_addr);
-    gen_set_reg(rv, rd, x64_rax);
+    gen_mov_eax_imm32(block, ret_addr);
+    gen_mov_rv32pc_eax(block, rv);
   }
 
   // check alignment of PC
@@ -538,9 +470,12 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rd     = dec_rd(inst);
 
-  printf("mov rcx, rv\n");
-  printf("mov rdx, %02xh\n", pc);
-  printf("mov r8, %02xh\n", inst);
+  // arg1
+  gen_mov_rcx_imm64(block, (uint64_t)rv);
+  // arg2
+  gen_mov_edx_imm32(block, pc);
+  // arg3
+  gen_mov_r8_imm32(block, inst);
 
   // dispatch by func3 field
   switch (funct3) {
@@ -549,11 +484,13 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
     switch (imm) {
     case 0: // ECALL
       // rv->io.on_ecall(rv, rv->PC, inst);
-      printf("call rv->io.on_ecall\n");
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.on_ecall);
+      gen_call_r9(block);
       break;
     case 1: // EBREAK
       // rv->io.on_ebreak(rv, rv->PC, inst);
-      printf("call rv->io.on_ebreak\n");
+      gen_mov_r9_imm64(block, (uint64_t)rv->io.on_ebreak);
+      gen_call_r9(block);
       break;
     default:
       assert(!"unreachable");
@@ -592,6 +529,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   block->instructions = 0;
   block->pc_start = rv->PC;
   block->pc_end = rv->PC;
+  block->head = 0;
 
   while (true) {
 
@@ -616,14 +554,20 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   }
 
   // finalize the basic block
-  printf("ret\n");
-  gen_emit_byte("\c3");  // ret
+  gen_ret(block);
 }
+
+struct block_t global_block;
+
 
 bool rv_step_jit(struct riscv_t *rv) {
 
-  struct block_t block;
-  rv_translate_block(rv, &block);
+  if (global_block.code == NULL) {
+    void *ptr = VirtualAlloc(NULL, 1024, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    global_block.code = ptr;
+  }
 
-  return false;
+  rv_translate_block(rv, &global_block);
+
+  return true;
 }
