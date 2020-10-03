@@ -446,7 +446,7 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   if (rd != rv_reg_zero) {
     const uint32_t ret_addr = pc + 4;
     gen_mov_eax_imm32(block, ret_addr);
-    gen_mov_rv32pc_eax(block, rv);
+    gen_mov_rv32reg_eax(block, rv, rd);
   }
 
   // check alignment of PC
@@ -504,6 +504,12 @@ static bool op_system(struct riscv_t *rv, uint32_t inst, struct block_t *block) 
   default:
     assert(!"unreachable");
   }
+
+  // step over to next instruction
+  // XXX: this would effectively stop ecall or ebreak changing PC
+  gen_mov_eax_imm32(block, pc + 4);
+  gen_mov_rv32pc_eax(block, rv);
+
   // step over instruction
   block->pc_end += 4;
   // could branch
@@ -535,6 +541,9 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
     printf("// %08xh\n", block->pc_end);
 
+    // XXX: temp
+    const uint32_t pc = block->pc_end;
+
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
     const uint32_t index = (inst & INST_6_2) >> 2;
@@ -549,7 +558,10 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
       break;
     }
 
-    // XXX: for testing
+    // XXX: temp
+    // step over to next instruction
+    gen_mov_eax_imm32(block, pc + 4);
+    gen_mov_rv32pc_eax(block, rv);
     break;
   }
 
@@ -568,6 +580,11 @@ bool rv_step_jit(struct riscv_t *rv) {
   }
 
   rv_translate_block(rv, &global_block);
+
+  // call the translated block
+  typedef void(*call_block_t)(void);
+  call_block_t c = (call_block_t)global_block.code;
+  c();
 
   return true;
 }

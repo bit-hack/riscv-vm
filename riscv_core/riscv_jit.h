@@ -65,11 +65,6 @@ static void gen_mov_r8_imm32(struct block_t *block, uint32_t imm) {
   gen_emit_data(block, (uint8_t*)&imm, 4);
 }
 
-static void gen_call_r8(struct block_t *block) {
-  printf("call r8\n");
-  gen_emit_data(block, "\x41\xff\xd0", 3);
-}
-
 static void gen_mov_r9_imm64(struct block_t *block, uint64_t imm) {
   printf("mov r9, %llx\n", imm);
   gen_emit_data(block, "\x49\xb9", 2);
@@ -77,8 +72,14 @@ static void gen_mov_r9_imm64(struct block_t *block, uint64_t imm) {
 }
 
 static void gen_call_r9(struct block_t *block) {
+  // the caller must allocate space for 4 arguments on the stack prior to
+  // calling.
+  printf("sub rsp, 32\n");
+  gen_emit_data(block, "\x48\x83\xec\x20", 4);
   printf("call r9\n");
   gen_emit_data(block, "\x41\xff\xd1", 3);
+  printf("add rsp, 32\n");
+  gen_emit_data(block, "\x48\x83\xc4\x20", 4);
 }
 
 static void gen_add_rdx_imm32(struct block_t *block, uint32_t imm) {

@@ -903,8 +903,8 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
 
 #if RISCV_VM_X64_JIT
     // XXX: just testing translation currently
-    if (!rv_step_jit(rv)) {
-      // emulate until jump
+    if (rv_step_jit(rv)) {
+      continue;
     }
 #endif
 
