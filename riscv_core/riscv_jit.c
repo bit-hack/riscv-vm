@@ -234,8 +234,7 @@ static bool op_auipc(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
 
   // rv->X[rd] = imm + rv->PC;
-  gen_mov_eax_rv32pc(block, rv);
-  gen_add_eax_imm32(block, imm);
+  gen_mov_eax_imm32(block, pc + imm);
   gen_mov_rv32reg_eax(block, rv, rd);
 
   // step over instruction
@@ -494,8 +493,7 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // jump
   // note: rel is aligned to a two byte boundary so we dont needs to do any
   //       masking here.
-  gen_mov_eax_rv32pc(block, rv);
-  gen_add_eax_imm32(block, rel);
+  gen_mov_eax_imm32(block, pc + rel);
   gen_mov_rv32pc_eax(block, rv);
 
   // link
@@ -597,9 +595,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
     JITPRINTF("// %08xh\n", block->pc_end);
 
-    // XXX: temp
-    const uint32_t pc = block->pc_end;
-
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
     const uint32_t index = (inst & INST_6_2) >> 2;
@@ -613,12 +608,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!op(rv, inst, block)) {
       break;
     }
-
-    // XXX: temp
-    // step over to next instruction
-    gen_mov_eax_imm32(block, pc + 4);
-    gen_mov_rv32pc_eax(block, rv);
-    break;
   }
 
   // finalize the basic block
@@ -627,6 +616,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
 bool rv_step_jit(struct riscv_t *rv) {
 
+  // lookup a block for this PC
   struct block_t *block = block_find(&rv->jit, rv->PC);
   if (!block) {
     block = block_alloc(&rv->jit);
