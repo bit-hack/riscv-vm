@@ -927,14 +927,15 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
 }
 
 #if RISCV_VM_X64_JIT
-void rv_step(struct riscv_t *rv, uint32_t cycles) {
+void rv_step(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
-  while (cycles-- && !rv->exception) {
+  while (cycles > 0 && !rv->exception) {
 
     // ask the jit engine to execute
     const uint32_t instructions = rv_step_jit(rv);
     if (instructions) {
       rv->csr_cycle += instructions;
+      cycles -= instructions;
       continue;
     }
 
@@ -955,7 +956,7 @@ void rv_step(struct riscv_t *rv, uint32_t cycles) {
   }
 }
 #else
-void rv_step(struct riscv_t *rv, uint32_t cycles) {
+void rv_step(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
   while (cycles-- && !rv->exception) {
 
