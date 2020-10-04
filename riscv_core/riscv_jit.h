@@ -10,6 +10,8 @@
 #define JITPRINTF(...)
 #endif
 
+static void gen_xor_edx_edx(struct block_t *block);
+
 static void gen_emit_data(struct block_t *block, uint8_t *ptr, uint32_t size) {
   // copy into the code buffer
   memcpy(block->code + block->head, ptr, size);
@@ -69,6 +71,10 @@ static void gen_mov_r9_imm64(struct block_t *block, uint64_t imm) {
 }
 
 static void gen_call_r9(struct block_t *block) {
+
+  // note: this is an often generated code fragment and we should look for
+  //       ways not to generate this or optimize it.
+
   // preserve the original stack frame which seems to be needed by some parts
   // of the MSCV stdlib.  without this i'd get a segfault.  perhaps it has
   // something to do with exception handlers and/or unwinding.
@@ -91,15 +97,27 @@ static void gen_call_r9(struct block_t *block) {
 }
 
 static void gen_add_rdx_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("add rdx, %d\n", (int32_t)imm);
-  gen_emit_data(block, "\x48\x81\xc2", 3);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm != 0) {
+    JITPRINTF("add rdx, %d\n", (int32_t)imm);
+    gen_emit_data(block, "\x48\x81\xc2", 3);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
+}
+
+static void gen_xor_ecx_ecx(struct block_t *block) {
+  JITPRINTF("xor ecx, ecx\n");
+  gen_emit_data(block, "\x31\xc9", 2);
 }
 
 static void gen_mov_ecx_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("mov ecx, %u\n", imm);
-  gen_emit_data(block, "\xb9", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm == 0) {
+    gen_xor_ecx_ecx(block);
+  }
+  else {
+    JITPRINTF("mov ecx, %u\n", imm);
+    gen_emit_data(block, "\xb9", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_mov_eax_rv32pc(struct block_t *block, struct riscv_t *rv) {
@@ -120,7 +138,13 @@ static void gen_mov_rv32pc_eax(struct block_t *block, struct riscv_t *rv) {
   gen_emit_data(block, "\x41\x89\x03", 3);
 }
 
-static void gen_mov_eax_rv32reg(struct block_t *block, struct riscv_t *rv, uint32_t reg) {
+static void gen_mov_eax_rv32reg(struct block_t *block,
+                                struct riscv_t *rv,
+                                uint32_t reg) {
+
+  // note: this is an often generated code fragment and we should look for
+  //       ways not to generate this or optimize it.
+
   if (reg == rv_reg_zero) {
     JITPRINTF("xor eax, eax\n");
     gen_emit_data(block, "\x31\xc0", 2);
@@ -150,7 +174,15 @@ static void gen_mov_ecx_rv32reg(struct block_t *block, struct riscv_t *rv, uint3
   }
 }
 
-static void gen_mov_rv32reg_eax(struct block_t *block, struct riscv_t *rv, uint32_t reg) {
+static void gen_mov_rv32reg_eax(struct block_t *block,
+                                struct riscv_t *rv,
+                                uint32_t reg) {
+
+  // note: this is currently the most frequently generated instruction fragment
+  //       by a hefty margin. should look at ways to not emit it such as
+  //       tracking register overwrites somehow.  we could eliminate the mov
+  //       into r11 if we keep track of the pointer its loaded with.
+
   if (reg != rv_reg_zero) {
     JITPRINTF("mov r11, &rv->X[%u]\n", reg);
     gen_emit_data(block, "\x49\xbb", 2);
@@ -167,9 +199,11 @@ static void gen_add_eax_ecx(struct block_t *block) {
 }
 
 static void gen_add_eax_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("add eax, %02x\n", imm);
-  gen_emit_data(block, "\x05", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm != 0) {
+    JITPRINTF("add eax, %02x\n", imm);
+    gen_emit_data(block, "\x05", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_xor_eax_eax(struct block_t *block) {
@@ -198,9 +232,11 @@ static void gen_sub_eax_ecx(struct block_t *block) {
 }
 
 static void gen_xor_eax_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("xor eax, %02x\n", imm);
-  gen_emit_data(block, "\x35", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm != 0) {
+    JITPRINTF("xor eax, %02x\n", imm);
+    gen_emit_data(block, "\x35", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_or_eax_imm32(struct block_t *block, uint32_t imm) {
@@ -210,9 +246,14 @@ static void gen_or_eax_imm32(struct block_t *block, uint32_t imm) {
 }
 
 static void gen_and_eax_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("and eax, %02x\n", imm);
-  gen_emit_data(block, "\x25", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm == 0) {
+    gen_xor_eax_eax(block);
+  }
+  else {
+    JITPRINTF("and eax, %02x\n", imm);
+    gen_emit_data(block, "\x25", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_cmp_eax_imm32(struct block_t *block, uint32_t imm) {
@@ -222,9 +263,14 @@ static void gen_cmp_eax_imm32(struct block_t *block, uint32_t imm) {
 }
 
 static void gen_mov_eax_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("mov eax, %02u\n", imm);
-  gen_emit_data(block, "\xb8", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm == 0) {
+    gen_xor_eax_eax(block);
+  }
+  else {
+    JITPRINTF("mov eax, %02u\n", imm);
+    gen_emit_data(block, "\xb8", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_cmp_eax_ecx(struct block_t *block) {
@@ -277,9 +323,11 @@ static void gen_xor_rdx_rdx(struct block_t *block) {
 }
 
 static void gen_add_edx_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("add edx, %02x\n", imm);
-  gen_emit_data(block, "\x81\xc2", 2);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm != 0) {
+    JITPRINTF("add edx, %02x\n", imm);
+    gen_emit_data(block, "\x81\xc2", 2);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_and_cl_imm8(struct block_t *block, uint8_t imm) {
@@ -309,21 +357,27 @@ static void gen_setl_dl(struct block_t *block) {
 }
 
 static void gen_shr_eax_imm8(struct block_t *block, uint8_t imm) {
-  JITPRINTF("shr eax, %d\n", (int32_t)imm);
-  gen_emit_data(block, "\xc1\xe8", 2);
-  gen_emit_data(block, &imm, 1);
+  if (imm != 0) {
+    JITPRINTF("shr eax, %d\n", (int32_t)imm);
+    gen_emit_data(block, "\xc1\xe8", 2);
+    gen_emit_data(block, &imm, 1);
+  }
 }
 
 static void gen_sar_eax_imm8(struct block_t *block, uint8_t imm) {
-  JITPRINTF("shr eax, %d\n", (int32_t)imm);
-  gen_emit_data(block, "\xc1\xf8", 2);
-  gen_emit_data(block, &imm, 1);
+  if (imm != 0) {
+    JITPRINTF("shr eax, %d\n", (int32_t)imm);
+    gen_emit_data(block, "\xc1\xf8", 2);
+    gen_emit_data(block, &imm, 1);
+  }
 }
 
 static void gen_shl_eax_imm8(struct block_t *block, uint8_t imm) {
-  JITPRINTF("shl eax, %d\n", (int32_t)imm);
-  gen_emit_data(block, "\xc1\xe0", 2);
-  gen_emit_data(block, &imm, 1);
+  if (imm != 0) {
+    JITPRINTF("shl eax, %d\n", (int32_t)imm);
+    gen_emit_data(block, "\xc1\xe0", 2);
+    gen_emit_data(block, &imm, 1);
+  }
 }
 
 static void gen_movsx_eax_al(struct block_t *block) {
@@ -337,9 +391,14 @@ static void gen_movsx_eax_ax(struct block_t *block) {
 }
 
 static void gen_mov_edx_imm32(struct block_t *block, uint32_t imm) {
-  JITPRINTF("mov edx, %02x\n", imm);
-  gen_emit_data(block, "\xba", 1);
-  gen_emit_data(block, (uint8_t*)&imm, 4);
+  if (imm == 0) {
+    gen_xor_edx_edx(block);
+  }
+  else {
+    JITPRINTF("mov edx, %02x\n", imm);
+    gen_emit_data(block, "\xba", 1);
+    gen_emit_data(block, (uint8_t*)&imm, 4);
+  }
 }
 
 static void gen_cmove_eax_edx(struct block_t *block) {
