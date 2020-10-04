@@ -123,6 +123,9 @@ riscv_exception_t rv_get_exception(struct riscv_t *);
 // raise a processor exception
 void rv_set_exception(struct riscv_t *, uint32_t except);
 
+// return the cycle counter
+uint64_t rv_get_csr_cycles(struct riscv_t *);
+
 #ifdef __cplusplus
 };  // ifdef __cplusplus
 #endif

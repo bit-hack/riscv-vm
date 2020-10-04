@@ -46,3 +46,7 @@ riscv_exception_t rv_get_exception(struct riscv_t *rv) {
 void rv_set_exception(struct riscv_t *rv, uint32_t except) {
   rv->exception = except;
 }
+
+uint64_t rv_get_csr_cycles(struct riscv_t *rv) {
+  return rv->csr_cycle;
+}

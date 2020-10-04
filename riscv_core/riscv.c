@@ -929,18 +929,19 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
 #if RISCV_VM_X64_JIT
 void rv_step(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
-  while (cycles > 0 && !rv->exception) {
+
+  const uint64_t cycles_start = rv->csr_cycle;
+  const uint64_t cycles_target = rv->csr_cycle + cycles;
+
+  while (rv->csr_cycle < cycles_target && !rv->exception) {
 
     // ask the jit engine to execute
-    const uint32_t instructions = rv_step_jit(rv);
-    if (instructions) {
-      rv->csr_cycle += instructions;
-      cycles -= instructions;
+    if (rv_step_jit(rv, cycles_target)) {
       continue;
     }
 
     // emulate until we hit a branch
-    while (cycles-- && !rv->exception) {
+    while (rv->csr_cycle < cycles_target && !rv->exception) {
       // fetch the next instruction
       const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
       const uint32_t index = (inst & INST_6_2) >> 2;
@@ -958,7 +959,11 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
 #else
 void rv_step(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
-  while (cycles-- && !rv->exception) {
+
+  const uint64_t cycles_start = rv->csr_cycle;
+  const uint64_t cycles_target = rv->csr_cycle + cycles;
+
+  while (rv->csr_cycle < cycles_target && !rv->exception) {
 
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
@@ -967,7 +972,7 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
     const opcode_t op = opcodes[index];
     assert(op);
     if (!op(rv, inst)) {
-      // doenst matter
+      break;
     }
     // increment the cycles csr
     rv->csr_cycle++;

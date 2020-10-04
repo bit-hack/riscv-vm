@@ -753,27 +753,35 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   gen_ret(block);
 }
 
-uint32_t rv_step_jit(struct riscv_t *rv) {
+bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
 
-  // lookup a block for this PC
-  struct block_t *block = block_find(&rv->jit, rv->PC);
-  if (!block) {
-    block = block_alloc(&rv->jit);
+  while (rv->csr_cycle < cycles_target) {
+
+    // lookup a block for this PC
+    struct block_t *block = block_find(&rv->jit, rv->PC);
+    if (!block) {
+      block = block_alloc(&rv->jit);
+      assert(block);
+      rv_translate_block(rv, block);
+      block_finish(&rv->jit, block);
+    }
+
+    // we should have a block by now
     assert(block);
-    rv_translate_block(rv, block);
-    block_finish(&rv->jit, block);
+
+    // call the translated block
+    typedef void(*call_block_t)(void);
+    call_block_t c = (call_block_t)block->code;
+    c();
+
+    // increment the cycles csr
+    rv->csr_cycle += block->instructions;
+
+    if (!block->instructions) {
+      return false;
+    }
   }
-
-  // we should have a block by now
-  assert(block);
-
-  // call the translated block
-  typedef void(*call_block_t)(void);
-  call_block_t c = (call_block_t)block->code;
-  c();
-
-  // return number of instructions executed
-  return block->instructions;
+  return true;
 }
 
 bool rv_init_jit(struct riscv_t *rv) {

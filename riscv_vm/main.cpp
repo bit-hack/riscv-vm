@@ -100,21 +100,23 @@ void run_and_trace(riscv_t *rv, state_t *state, elf_t &elf) {
 void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
   static const uint32_t cycles_per_step = 500;
   clock_t start = clock();
-  uint32_t clocks = 0;
+
+  uint64_t cycles_base = rv_get_csr_cycles(rv);
+
   // run until we see the flag that we are done
   for (; !state->done;) {
     // track instruction MIPS
     if ((clock() - start) >= CLOCKS_PER_SEC) {
       start += CLOCKS_PER_SEC;
-      printf("%d IPS\n", int(clocks));
-      clocks = 0;
+      const uint64_t cycles = rv_get_csr_cycles(rv);
+      printf("%d IPS\n", int(cycles - cycles_base));
+      cycles_base = cycles;
     }
     // step instructions
     rv_step(rv, cycles_per_step);
     if (rv_get_exception(rv) != rv_except_none) {
       break;
     }
-    clocks += cycles_per_step;
   }
 }
 
