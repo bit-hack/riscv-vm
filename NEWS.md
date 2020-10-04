@@ -3,7 +3,19 @@
 ----
 ### 04 Oct. 2020
 
-I have managed to progress this project far beyond my initial targets.  Over the last few days I have implemented a binary translation engine from RISCV instructions into native x64 code.  The result of this is a hefty increase in execution speed with DOOM now running at ~460 MIPS compared to the emulation only 117 MIPS.  Interestingly Quake also sees a speed boots running at ~247 MIPS, a win over the emulation only ~103 MIPS.
+Some time was spent today looking at the bottlenecks in the generated code, which were in riscv register file access and function calls during io and syscalls.  Both of these operations would involve accessing the members of a structure which stores the state of the emulation.  The DynRec would place the address of these members into a register and then perform a write or read from that address.  It is two instructions yet it involves a large 64bit immediate for the member address.
+
+To optimize this, I store the emulation struct address in the RSI register, and any access to it can then be performed in one mov operation using base addressing.  As RSI is callee save, I also had to implement prologue and epilogue code to save this register.  That turned out to be a win too as it simplified the call handling code.
+
+At this point `DOOM` is running around 546 MIPS, which is a nice boost over the results I had this morning.  While `Quake` is less consistent it is higher at around 282 MIPS.
+
+The lesson I learned here is that encoding everything as immediate data is not good for instruction count or code size.  Also it pays to read the ABI spec closely, and I was caught out by a few issues such as shadow space, alignment, etc.
+
+
+----
+### 04 Oct. 2020
+
+I have managed to progress this project far beyond my initial targets.  Over the last few days I have implemented a binary translation engine from RISCV instructions into native x64 code.  The result of this is a hefty increase in execution speed with `DOOM` now running at ~460 MIPS compared to the emulation only 117 MIPS.  Interestingly `Quake` also sees a speed boost running at ~247 MIPS, a win over the emulation only ~103 MIPS.
 
 The reason for the large different in MIPS between Quake and Doom is because the DynRec currently only supports the RV32I and some of the RV32IM instructions.  Any basic blocks that make use of floating point instructions will fall back to pure emulation.  As the DynRec is taught how to compile float instructions then this figure can be expected to rise significantly.
 
