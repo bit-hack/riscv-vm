@@ -1,7 +1,39 @@
 # RISCV-VM News
 
 ----
-### 01 Sept. 2020
+### 04 Oct. 2020
+
+I have managed to progress this project far beyond my initial targets.  Over the last few days I have implemented a binary translation engine from RISCV instructions into native x64 code.  The result of this is a hefty increase in execution speed with DOOM now running at ~460 MIPS compared to the emulation only 117 MIPS.  Interestingly Quake also sees a speed boots running at ~247 MIPS, a win over the emulation only ~103 MIPS.
+
+The reason for the large different in MIPS between Quake and Doom is because the DynRec currently only supports the RV32I and some of the RV32IM instructions.  Any basic blocks that make use of floating point instructions will fall back to pure emulation.  As the DynRec is taught how to compile float instructions then this figure can be expected to rise significantly.
+
+At the time of writing the DynRec engine will only run on Windows X64 machines, because it makes use of the Windows API and follows the Windows x64 calling convention for generated code. I do plan to extend support to Linux in the future too, which would however require some thought about how avoid increasing the code complexity to handle different host ABIs.
+
+The high level operation of the DynRec can be summarized as follows:
+- Look in a hashmap for a code block matching the current PC
+- if a block is found
+  - execute this block
+- if a block is not found
+  - allocate a new block
+  - invoke the translator for this block
+  - insert it into the hash map
+  - execute this block
+
+Translation happens at the basic block level, so each block will end after a branch instruction has been translated. Currently there is no optimization pass of the generated code, it is entirely unaware of the code surrounding it and so it is fast to generate and slow to execute.
+
+Using the current DynRec gives us a speed boost due to the following reasons:
+- No instruction fetch
+- No instruction decode
+- Immediate values are baked into translated instructions
+  - Values of 0 can be optimized
+- Zero register can be optimized
+  - No lookup required
+  - Writes are discarded
+- Reduced emulation loop overhead
+- Blocks can be chained based on previous branch pattern for faster lookup
+
+----
+### 01 Oct. 2020
 
 Another fairly significant milestone has been achieved;  I have compiled and successfully run `Quake` on the RISC-VM.  What makes this milestone stand apart from `Doom` is that `Quake` uses floating point math in a lot of areas.  For this reason it feels like a fairly good test of the RV32F support I have been working on.
 
@@ -14,8 +46,7 @@ It is interesting to see lots of the floating point instructions light up and so
 - The sign swapping instructions do get called.
 - Min/Max never seem to get called.
 - None of the FMA variants get called.
-- fclass doesnt get called.
-
+- fclass does not get called.
 
 ----
 ### 30 Sept. 2020
