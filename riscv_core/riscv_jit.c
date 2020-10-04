@@ -41,6 +41,7 @@ struct block_t *block_alloc(struct riscv_jit_t *jit) {
   struct block_t *block = (struct block_t *)jit->head;
   // set the initial block write head
   block->head = 0;
+  block->predict = NULL;
   return block;
 }
 
@@ -753,17 +754,46 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   gen_ret(block);
 }
 
+struct block_t *block_find_or_translate(struct riscv_t *rv, struct block_t *prev) {
+  // lookup the next block in the block map
+  struct block_t *next = block_find(&rv->jit, rv->PC);
+  // translate if we didnt find one
+  if (!next) {
+    next = block_alloc(&rv->jit);
+    assert(next);
+    rv_translate_block(rv, next);
+    block_finish(&rv->jit, next);
+    // update the block predictor
+    // note: if the block predictor gives us a win when we
+    //       translate a new block but gives us a huge penalty when
+    //       updated after we find a new block.  didnt expect that.
+    if (prev) {
+      prev->predict = next;
+    }
+  }
+  assert(next);
+  return next;
+}
+
 bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
 
+  // find or translate a block for our starting PC
+  struct block_t *block = block_find_or_translate(rv, NULL);
+  assert(block);
+
+  // loop until we hit out cycle target
   while (rv->csr_cycle < cycles_target) {
 
-    // lookup a block for this PC
-    struct block_t *block = block_find(&rv->jit, rv->PC);
-    if (!block) {
-      block = block_alloc(&rv->jit);
-      assert(block);
-      rv_translate_block(rv, block);
-      block_finish(&rv->jit, block);
+    // try to predict the next block
+    // note: block predition gives us ~100 MIPS boost.
+    if (block->predict && block->predict->pc_start == rv->PC) {
+      block = block->predict;
+    }
+    else {
+      // lookup the next block in the block map or translate a new block
+      struct block_t *next = block_find_or_translate(rv, block);
+      // move onto the next block
+      block = next;
     }
 
     // we should have a block by now
@@ -777,10 +807,14 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
     // increment the cycles csr
     rv->csr_cycle += block->instructions;
 
+    // if this block has no instructions we cant make forward progress so
+    // must fallback to instruction emulation
     if (!block->instructions) {
       return false;
     }
   }
+
+  // hit our cycle target
   return true;
 }
 

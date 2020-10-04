@@ -65,6 +65,8 @@ struct block_t {
   // address range of the basic block
   uint32_t pc_start;
   uint32_t pc_end;
+  // next block prediction
+  struct block_t *predict;
   // number of bytes that have been emitted
   uint32_t head;
   uint8_t code[];
