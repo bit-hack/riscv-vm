@@ -106,44 +106,36 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   gen_mov_edx_rv32reg(block, rv, rs1);
   gen_add_edx_imm32(block, rv, imm);
 
+  uintptr_t offset;
+
   // dispatch by read size
   switch (funct3) {
   case 0: // LB
     // rv->X[rd] = sign_extend_b(rv->io.mem_read_b(rv, addr));
-    {
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_read_b);
-      gen_call_r9(block, rv);
-      gen_movsx_eax_al(block, rv);
-    }
+    offset = ((uintptr_t)&rv->io.mem_read_b) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    gen_movsx_eax_al(block, rv);
     break;
   case 1: // LH
     // rv->X[rd] = sign_extend_h(rv->io.mem_read_s(rv, addr));
-    {
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_read_s);
-      gen_call_r9(block, rv);
-      gen_movsx_eax_ax(block, rv);
-    }
+    offset = ((uintptr_t)&rv->io.mem_read_s) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    gen_movsx_eax_ax(block, rv);
     break;
   case 2: // LW
     // rv->X[rd] = rv->io.mem_read_w(rv, addr);
-    {
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_read_w);
-      gen_call_r9(block, rv);
-  }
+    offset = ((uintptr_t)&rv->io.mem_read_w) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   case 4: // LBU
     // rv->X[rd] = rv->io.mem_read_b(rv, addr);
-    {
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_read_b);
-      gen_call_r9(block, rv);
-  }
+    offset = ((uintptr_t)&rv->io.mem_read_b) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   case 5: // LHU
     // rv->X[rd] = rv->io.mem_read_s(rv, addr);
-    {
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_read_s);
-      gen_call_r9(block, rv);
-  }
+    offset = ((uintptr_t)&rv->io.mem_read_s) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   default:
     assert(!"unreachable");
@@ -291,22 +283,24 @@ static bool op_store(struct riscv_t *rv,
   gen_mov_eax_rv32reg(block, rv, rs2);
   gen_mov_r8_rax(block, rv);
 
+  uintptr_t offset;
+
   // dispatch by write size
   switch (funct3) {
   case 0: // SB
     // rv->io.mem_write_b(rv, addr, data);
-    gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_write_b);
-    gen_call_r9(block, rv);
+    offset = ((uintptr_t)&rv->io.mem_write_b) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   case 1: // SH
     // rv->io.mem_write_s(rv, addr, data);
-    gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_write_s);
-    gen_call_r9(block, rv);
+    offset = ((uintptr_t)&rv->io.mem_write_s) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   case 2: // SW
     // rv->io.mem_write_w(rv, addr, data);
-    gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.mem_write_w);
-    gen_call_r9(block, rv);
+    offset = ((uintptr_t)&rv->io.mem_write_w) - (uintptr_t)rv;
+    gen_call_rsiindex(block, rv, (uint32_t)offset);
     break;
   default:
     assert(!"unreachable");
@@ -684,6 +678,8 @@ static bool op_system(struct riscv_t *rv,
   // arg3
   gen_mov_r8_imm32(block, rv, inst);
 
+  uintptr_t offset;
+
   // dispatch by func3 field
   switch (funct3) {
   case 0:
@@ -691,13 +687,13 @@ static bool op_system(struct riscv_t *rv,
     switch (imm) {
     case 0: // ECALL
       // rv->io.on_ecall(rv, rv->PC, inst);
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.on_ecall);
-      gen_call_r9(block, rv);
+      offset = ((uintptr_t)&rv->io.on_ecall) - (uintptr_t)rv;
+      gen_call_rsiindex(block, rv, (uint32_t)offset);
       break;
     case 1: // EBREAK
       // rv->io.on_ebreak(rv, rv->PC, inst);
-      gen_mov_r9_imm64(block, rv, (uint64_t)rv->io.on_ebreak);
-      gen_call_r9(block, rv);
+      offset = ((uintptr_t)&rv->io.on_ebreak) - (uintptr_t)rv;
+      gen_call_rsiindex(block, rv, (uint32_t)offset);
       break;
     default:
       assert(!"unreachable");
@@ -726,7 +722,7 @@ static bool op_system(struct riscv_t *rv,
 
   // could branch
   // XXX: could set this to true for now
-  return false;
+  return true;
 }
 
 // opcode handler type
@@ -746,6 +742,8 @@ static const opcode_t opcodes[] = {
 static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   assert(rv);
 
+  JITPRINTF("// %08xh\n", rv->PC);
+
   // setup the basic block
   block->instructions = 0;
   block->pc_start = rv->PC;
@@ -755,7 +753,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   gen_prologue(block, rv);
 
   for (;;) {
-    JITPRINTF("// %08xh\n", block->pc_end);
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
     const uint32_t index = (inst & INST_6_2) >> 2;
@@ -770,6 +767,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!op(rv, inst, block)) {
       break;
     }
+//    JITPRINTF("// %08xh\n", block->pc_end);
   }
 
   // finalize the basic block
