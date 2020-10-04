@@ -743,6 +743,9 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     // find translation function
     const opcode_t op = opcodes[index];
     if (!op) {
+      // make sure PC gets updated
+      gen_mov_eax_imm32(block, block->pc_end);
+      gen_mov_rv32pc_eax(block, rv);
       break;
     }
     if (!op(rv, inst, block)) {
