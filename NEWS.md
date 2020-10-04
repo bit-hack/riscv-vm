@@ -1,6 +1,7 @@
 # RISCV-VM News
 
 ----
+### 04 Oct. 2020
 
 Some time was spent today looking at the largest bottlenecks in the generated code which were in riscv register file access and callbacks when doing io and syscalls.  Both of these operations would involve accessing the members of a structure which stores the state of the emulation.  The DynRec would place the address of these members into a register and then perform a write or read from that address.  It is two instructions yet it involves a large 64bit immediate for the member address.
 
@@ -17,6 +18,8 @@ The list of things I am thinking about going forward:
 - Supporting RV32F in the DynRec
 - Testing
 - Adding user input to `Quake` and `Doom`
+
+Just a quick note on how I generated the code fragments.  I made extensive use of an [Online Assembler](http://shell-storm.org/online/Online-Assembler-and-Disassembler) and the ever useful [Godbolt Compiler Exporer](https://godbolt.org/).  Using Godbolt I could verify what I thought the assembly my instruction emulations would lower to, which was mainly useful for navigating all the different forms of comparison instructions.  The instruction strings themselves were generated using the online assembler and could quickly be inserted into the JIT code header.
 
 ----
 ### 04 Oct. 2020
