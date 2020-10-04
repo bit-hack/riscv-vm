@@ -1,16 +1,21 @@
 # RISC-V Virtual Machine
 
-This is a simple RISCV-V Virtual Machine and instruction set emulator implementing the RV32IM processor model.
+This is a RISCV-V Virtual Machine and instruction set emulator implementing a 32 bit RISCV-V processor model.  I started this project as a learning exercise to get more familiar with the RISC-V eco system and have increased the scope of the project as it matures.  The project itself is still very much in the early stages however.
 
-There are two elements to this project:
+Features:
+- Support for RV32I and RV32M
+- Partial support for RV32F and RV32A
+- Syscall emulation and host passthrough
+- Emulation using [Dynamic Binary Translation](https://en.wikipedia.org/wiki/Binary_translation#Dynamic_binary_translation)
+- It can run Doom, Quake and SmallPT
+
+There are broadly two elements to this project:
 - An ISA emulator core written in C which presents a low level API for interfacing.
-- The VM frontend written in C++ which interfaces the ISA emulator core with the rest of the world.
+- The VM frontend written in C++ which interfaces the ISA emulator core with the host computer.
 
-The key goals of this project is to provide a small emulator for learning about RISC-V with a simple API for embedding it in other projects.
+Note: The Binary Translation emulator is currently only available when building for x64 Windows. This is due to the generated code being tailored to that ABI, however in time Linux support for the code generator will follow.
 
-See [news](NEWS.md) for development updates.
-
-See [this readme](tests/doom/README.md) for notes about the DOOM demo.
+See [news](NEWS.md) for a development log and updates.
 
 
 ----
@@ -21,7 +26,7 @@ See [this readme](tests/doom/README.md) for notes about the DOOM demo.
 
 ----
 ## Build requirements
-- C++ 14 compatable compiler  (VisualStudio 15+, GCC 4.9+)
+- C++ 14 compatible compiler  (VisualStudio 15+, GCC 4.9+)
 - CMake 3.0 or above
 - SDL1.2 (if you want video support)
 
