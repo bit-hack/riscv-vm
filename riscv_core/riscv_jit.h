@@ -22,6 +22,38 @@ static void gen_emit_data(struct block_t *block,
   block->head += size;
 }
 
+static void gen_mov_eax_rsiindex(struct block_t *block,
+                                 struct riscv_t *rv,
+                                 uint32_t offset) {
+  JITPRINTF("mov eax, [rsi + %u]\n", offset);
+  gen_emit_data(block, rv, "\x8b\x86", 2);
+  gen_emit_data(block, rv, (uint8_t*)&offset, 4);
+}
+
+static void gen_mov_edx_rsiindex(struct block_t *block,
+  struct riscv_t *rv,
+  uint32_t offset) {
+  JITPRINTF("mov edx, [rsi + %u]\n", offset);
+  gen_emit_data(block, rv, "\x8b\x96", 2);
+  gen_emit_data(block, rv, (uint8_t*)&offset, 4);
+}
+
+static void gen_mov_ecx_rsiindex(struct block_t *block,
+  struct riscv_t *rv,
+  uint32_t offset) {
+  JITPRINTF("mov ecx, [rsi + %u]\n", offset);
+  gen_emit_data(block, rv, "\x8b\x8e", 2);
+  gen_emit_data(block, rv, (uint8_t*)&offset, 4);
+}
+
+static void gen_mov_rsiindex_eax(struct block_t *block,
+                                 struct riscv_t *rv,
+                                 uint32_t offset) {
+  JITPRINTF("mov [rsi + %u], eax\n", offset);
+  gen_emit_data(block, rv, "\x89\x86", 2);
+  gen_emit_data(block, rv, (uint8_t*)&offset, 4);
+}
+
 static void gen_mov_rax_imm32(struct block_t *block,
                               struct riscv_t *rv,
                               uint32_t imm) {
@@ -89,29 +121,9 @@ static void gen_mov_r9_imm64(struct block_t *block,
 }
 
 static void gen_call_r9(struct block_t *block, struct riscv_t *rv) {
-
-  // note: this is an often generated code fragment and we should look for
-  //       ways not to generate this or optimize it.
-
-  // preserve the original stack frame which seems to be needed by some parts
-  // of the MSCV stdlib.  without this i'd get a segfault.  perhaps it has
-  // something to do with exception handlers and/or unwinding.
-  JITPRINTF("push rbp\n");
-  JITPRINTF("mov rbp, rsp\n");
-  gen_emit_data(block, rv, "\x55\x48\x89\xE5", 4);
-  // the caller must allocate space for 4 arguments on the stack prior to
-  // calling.
-  JITPRINTF("sub rsp, 32\n");
-  gen_emit_data(block, rv, "\x48\x83\xec\x20", 4);
   // execute the call
   JITPRINTF("call r9\n");
   gen_emit_data(block, rv, "\x41\xff\xd1", 3);
-  // release the stack space we allocated for temp saves
-  JITPRINTF("add rsp, 32\n");
-  gen_emit_data(block, rv, "\x48\x83\xc4\x20", 4);
-  // pop the stack frame
-  JITPRINTF("pop rbp\n");
-  gen_emit_data(block, rv, "\x5D", 1);
 }
 
 static void gen_add_rdx_imm32(struct block_t *block,
@@ -142,22 +154,9 @@ static void gen_mov_ecx_imm32(struct block_t *block,
   }
 }
 
-static void gen_mov_eax_rv32pc(struct block_t *block, struct riscv_t *rv) {
-  JITPRINTF("mov r11, &rv->PC\n");
-  gen_emit_data(block, rv, "\x49\xbb", 2);
-  uintptr_t ptr = (uintptr_t)&rv->PC;
-  gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-  JITPRINTF("mov eax, [r11]\n");
-  gen_emit_data(block, rv, "\x41\x8b\x03", 3);
-}
-
 static void gen_mov_rv32pc_eax(struct block_t *block, struct riscv_t *rv) {
-  JITPRINTF("mov r11, &rv->PC\n");
-  gen_emit_data(block, rv, "\x49\xbb", 2);
-  uintptr_t ptr = (uintptr_t)&rv->PC;
-  gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-  JITPRINTF("mov [r11], eax\n");
-  gen_emit_data(block, rv, "\x41\x89\x03", 3);
+  const uintptr_t offset = ((uintptr_t)&rv->PC) - (uintptr_t)rv;
+  gen_mov_rsiindex_eax(block, rv, (uint32_t)offset);
 }
 
 static void gen_mov_eax_rv32reg(struct block_t *block,
@@ -172,12 +171,8 @@ static void gen_mov_eax_rv32reg(struct block_t *block,
     gen_emit_data(block, rv, "\x31\xc0", 2);
   }
   else {
-    JITPRINTF("mov r11, &rv->X[%u]\n", reg);
-    gen_emit_data(block, rv, "\x49\xbb", 2);
-    uintptr_t ptr = (uintptr_t)&rv->X[reg];
-    gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-    JITPRINTF("mov eax, [r11]\n");
-    gen_emit_data(block, rv, "\x41\x8b\x03", 3);
+    const uintptr_t offset = (uintptr_t)(rv->X + reg) - (uintptr_t)rv;
+    gen_mov_eax_rsiindex(block, rv, (uint32_t)offset);
   }
 }
 
@@ -189,12 +184,8 @@ static void gen_mov_ecx_rv32reg(struct block_t *block,
     gen_emit_data(block, rv, "\x31\xc9", 2);
   }
   else {
-    JITPRINTF("mov r11, &rv->PC\n");
-    gen_emit_data(block, rv, "\x49\xbb", 2);
-    uintptr_t ptr = (uintptr_t)&rv->X[reg];
-    gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-    JITPRINTF("mov ecx, [r11]\n");
-    gen_emit_data(block, rv, "\x41\x8b\x0b", 3);
+    const uintptr_t offset = (uintptr_t)(rv->X + reg) - (uintptr_t)rv;
+    gen_mov_ecx_rsiindex(block, rv, (uint32_t)offset);
   }
 }
 
@@ -208,12 +199,8 @@ static void gen_mov_rv32reg_eax(struct block_t *block,
   //       into r11 if we keep track of the pointer its loaded with.
 
   if (reg != rv_reg_zero) {
-    JITPRINTF("mov r11, &rv->X[%u]\n", reg);
-    gen_emit_data(block, rv, "\x49\xbb", 2);
-    uintptr_t ptr = (uintptr_t)&rv->X[reg];
-    gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-    JITPRINTF("mov [r11], eax\n");
-    gen_emit_data(block, rv, "\x41\x89\x03", 3);
+    uintptr_t offset = (uintptr_t)(rv->X + reg) - (uintptr_t)rv;
+    gen_mov_rsiindex_eax(block, rv, (uint32_t)offset);
   }
 }
 
@@ -314,30 +301,9 @@ static void gen_cmp_eax_ecx(struct block_t *block, struct riscv_t *rv) {
   gen_emit_data(block, rv, "\x39\xc8", 2);
 }
 
-static void gen_mov_rv32pc_r8(struct block_t *block, struct riscv_t *rv) {
-  JITPRINTF("mov r11, &rv->PC\n");
-  gen_emit_data(block, rv, "\x49\xbb", 2);
-  uintptr_t ptr = (uintptr_t)&rv->PC;
-  gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-  JITPRINTF("mov [r11], r8\n");
-  gen_emit_data(block, rv, "\x4d\x89\x03", 3);
-}
-
-static void gen_mov_r8_rv32reg(struct block_t *block,
-                               struct riscv_t *rv,
-                               uint32_t reg) {
-  if (reg == rv_reg_zero) {
-    JITPRINTF("xor r8, r8\n");
-    gen_emit_data(block, rv, "\x4d\x31\xc0", 3);
-  }
-  else {
-    JITPRINTF("mov r11, &rv->X[%u]\n", reg);
-    gen_emit_data(block, rv, "\x49\xbb", 2);
-    uintptr_t ptr = (uintptr_t)&rv->X[reg];
-    gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-    JITPRINTF("mov r8, [r11]\n");
-    gen_emit_data(block, rv, "\x4d\x8b\x03", 3);
-  }
+static void gen_mov_r8_rax(struct block_t *block, struct riscv_t *rv) {
+  JITPRINTF("mov r8, rax\n");
+  gen_emit_data(block, rv, "\x49\x89\xc0", 3);
 }
 
 static void gen_mov_edx_rv32reg(struct block_t *block,
@@ -348,12 +314,8 @@ static void gen_mov_edx_rv32reg(struct block_t *block,
     gen_emit_data(block, rv, "\x31\xd2", 2);
   }
   else {
-    JITPRINTF("mov r11, &rv->X[%u]\n", reg);
-    gen_emit_data(block, rv, "\x49\xbb", 2);
-    uintptr_t ptr = (uintptr_t)&rv->X[reg];
-    gen_emit_data(block, rv, (uint8_t*)&ptr, 8);
-    JITPRINTF("mov edx, [r11]\n");
-    gen_emit_data(block, rv, "\x41\x8b\x13", 3);
+    const uintptr_t offset = (uintptr_t)(rv->X + reg) - (uintptr_t)rv;
+    gen_mov_edx_rsiindex(block, rv, (uint32_t)offset);
   }
 }
 
@@ -516,4 +478,28 @@ static void gen_imul_ecx(struct block_t *block, struct riscv_t *rv) {
 static void gen_mul_ecx(struct block_t *block, struct riscv_t *rv) {
   JITPRINTF("mul ecx\n");
   gen_emit_data(block, rv, "\xf7\xe1", 2);
+}
+
+static void gen_prologue(struct block_t *block, struct riscv_t *rv) {
+  JITPRINTF("push rbp\n");
+  JITPRINTF("mov rbp, rsp\n");
+  gen_emit_data(block, rv, "\x55\x48\x89\xe5", 4);
+  JITPRINTF("sub rsp, 64\n");
+  gen_emit_data(block, rv, "\x48\x83\xec\x40", 4);
+  // save rsi
+  JITPRINTF("mov [rsp + 32], rsi\n");
+  gen_emit_data(block, rv, "\x48\x89\x74\x24\x20", 5);
+  // move rv struct into rsi
+  JITPRINTF("mov rsi, rcx\n");
+  gen_emit_data(block, rv, "\x48\x89\xce", 3);
+}
+
+static void gen_epilogue(struct block_t *block, struct riscv_t *rv) {
+  // restore rsi
+  JITPRINTF("mov rsi, [rsp + 32]\n");
+  gen_emit_data(block, rv, "\x48\x8b\x74\x24\x20", 5);
+  JITPRINTF("mov rsp, rbp\n");
+  gen_emit_data(block, rv, "\x48\x89\xec", 3);
+  JITPRINTF("pop rbp\n");
+  gen_emit_data(block, rv, "\x5d", 1);
 }

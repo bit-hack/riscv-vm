@@ -24,6 +24,8 @@
 //  volatile registers:
 //    rax, rcx, rdx, r8, r9, r10, r11
 //
+//  we will keep the rv structure in rsi at all times
+//
 
 // a hash function is used when mapping addresses to indexes in the block map
 static uint32_t wang_hash(uint32_t a) {
@@ -284,7 +286,10 @@ static bool op_store(struct riscv_t *rv,
 
   // arg3
   // const uint32_t data = rv->X[rs2];
-  gen_mov_r8_rv32reg(block, rv, rs2);
+  // XXX: coult drop the xor here as we care about lower 32bits?
+  gen_xor_rax_rax(block, rv);
+  gen_mov_eax_rv32reg(block, rv, rs2);
+  gen_mov_r8_rax(block, rv);
 
   // dispatch by write size
   switch (funct3) {
@@ -747,6 +752,8 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   block->pc_end = rv->PC;
   block->head = 0;
 
+  gen_prologue(block, rv);
+
   for (;;) {
     JITPRINTF("// %08xh\n", block->pc_end);
     // fetch the next instruction
@@ -766,6 +773,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   }
 
   // finalize the basic block
+  gen_epilogue(block, rv);
   gen_ret(block, rv);
 }
 
@@ -816,9 +824,9 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
     assert(block);
 
     // call the translated block
-    typedef void(*call_block_t)(void);
+    typedef void(*call_block_t)(struct riscv_t *);
     call_block_t c = (call_block_t)block->code;
-    c();
+    c(rv);
 
     // increment the cycles csr
     rv->csr_cycle += block->instructions;
