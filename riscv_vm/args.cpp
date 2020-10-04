@@ -2,14 +2,11 @@
 #include <cstring>
 
 
-// enable program trace mode
 extern bool g_arg_trace;
-// enable compliance mode
 extern bool g_arg_compliance;
-// show MIPS throughput
 extern bool g_arg_show_mips;
+extern bool g_fullscreen;
 
-// target executable
 extern const char *g_arg_program;
 
 
@@ -22,6 +19,7 @@ void print_usage(const char *filename) {
   --compliance   | Generate a compliance signature
   --trace        | Print execution trace
   --show-mips    | Show MIPS throughput
+  --fullscreen   | Run in a fullscreen window
 )", filename);
 }
 
@@ -44,6 +42,10 @@ bool parse_args(int argc, char **args) {
       }
       if (0 == strcmp(arg, "--show-mips")) {
         g_arg_show_mips = true;
+        continue;
+      }
+      if (0 == strcmp(arg, "--fullscreen")) {
+        g_fullscreen = true;
         continue;
       }
       // error

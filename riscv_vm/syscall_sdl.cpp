@@ -4,23 +4,30 @@
 #include <cstdio>
 #include <ctime>
 
+#include <SDL.h>
+
 #include "../riscv_core/riscv.h"
 #include "state.h"
 
-#include <SDL.h>
+extern bool g_fullscreen;
+
+static SDL_Surface *g_video;
 
 
-SDL_Surface *g_video;
-
-
-static bool check_sdl(uint32_t width, uint32_t height) {
+static bool check_sdl(struct riscv_t *rv, uint32_t width, uint32_t height) {
   // check if video has been setup
   if (!g_video) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
       fprintf(stderr, "Failed to call SDL_Init()\n");
       exit(1);
     }
-    g_video = SDL_SetVideoMode(width, height, 32, 0);
+
+    int flags = 0;
+    if (g_fullscreen) {
+      flags |= SDL_FULLSCREEN;
+    }
+
+    g_video = SDL_SetVideoMode(width, height, 32, flags);
     if (!g_video) {
       fprintf(stderr, "Failed to call SDL_SetVideoMode()\n");
       exit(1);
@@ -32,7 +39,13 @@ static bool check_sdl(uint32_t width, uint32_t height) {
   while (SDL_PollEvent(&event)) {
     switch (event.type) {
     case SDL_QUIT:
-      exit(0);
+      rv_set_exception(rv, rv_except_halt);
+      break;
+    case SDL_KEYDOWN:
+      if (event.key.keysym.sym == SDLK_ESCAPE) {
+        rv_set_exception(rv, rv_except_halt);
+        break;
+      }
     }
   }
   // success
@@ -47,7 +60,7 @@ void syscall_draw_frame(struct riscv_t *rv) {
   const uint32_t width  = rv_get_reg(rv, rv_reg_a1);
   const uint32_t height = rv_get_reg(rv, rv_reg_a2);
   // check if we need to setup SDL
-  if (!check_sdl(width, height)) {
+  if (!check_sdl(rv, width, height)) {
     return;
   }
   // read directly into video memory
@@ -66,7 +79,7 @@ void syscall_draw_frame_pal(struct riscv_t *rv) {
   const uint32_t width = rv_get_reg(rv, rv_reg_a2);
   const uint32_t height = rv_get_reg(rv, rv_reg_a3);
   // check if we need to setup SDL
-  if (!check_sdl(width, height)) {
+  if (!check_sdl(rv, width, height)) {
     return;
   }
   // read directly into video memory

@@ -18,6 +18,8 @@ bool g_arg_compliance = false;
 const char *g_arg_program = "a.out";
 // show MIPS
 bool g_arg_show_mips = false;
+// run in fullscreen
+bool g_fullscreen = false;
 
 // main syscall handler
 void syscall_handler(struct riscv_t *);
