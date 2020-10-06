@@ -4,28 +4,137 @@
 #include <string.h>
 #include <stdio.h>
 
-#if RISCV_VM_X64_JIT
+#ifdef _WIN32
 #include <Windows.h>
+#endif
+
+#if __linux__
+//#include <asm/cachectl.h>
+#include <sys/mman.h>
 #endif
 
 #include "riscv.h"
 #include "riscv_private.h"
-#include "riscv_jit.h"
+
+// calling convention
+//
+//        windows     linux
+//  arg1  RCX         RDI
+//  arg2  RDX         RSI
+//  arg3  R8          RDX
+//  arg4  R9          RCX
+//  arg5              R8
+//  arg6              R9
+//
+//  callee save
+//    windows   RBX, RBP, RDI, RSI, R12, R13, R14, R15
+//    linux     RBX, RBP,           R12, R13, R14, R15
+//
+//  caller save
+//    windows   RAX, RCX, RDX,           R8, R9, R10, R11
+//    linux     RAX, RCX, RDX, RDI, RSI, R8, R9, R10, R11
+//
+//  erata:
+//    windows - caller must allocate 32bytes of shadow space.
+//    windows - stack must be 16 byte aligned.
+//    linux   - no shadow space needed.
 
 
-//  Windows X64 calling convention
-//
-//  args:
-//    1   rcx
-//    2   rdx
-//    3   r8
-//    4   r9
-//
-//  volatile registers:
-//    rax, rcx, rdx, r8, r9, r10, r11
-//
-//  we will keep the rv structure in rsi at all times
-//
+// total size of the code block
+static const uint32_t code_size = 1024 * 1024 * 4;
+
+// total number of block map entries
+static const uint32_t map_size = 1024 * 64;
+
+
+// flush the instruction cache for a region
+static void sys_flush_icache(const void *start, size_t size) {
+#ifdef _WIN32
+  if (!FlushInstructionCache(GetCurrentProcess(), start, size)) {
+    // failed
+  }
+#endif
+#ifdef __linux__
+//  if (cacheflush(start, size, ICACHE) == -1) {
+//    // failed
+//  }
+#endif
+}
+
+// allocate system executable memory
+static void *sys_alloc_exec_mem(uint32_t size) {
+#ifdef _WIN32
+  return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+#endif
+#ifdef __linux__
+  const int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+  // mmap(addr, length, prot, flags, fd, offset)
+  return mmap(NULL, size, prot, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+#endif
+}
+
+// byte offset from rv structure address to member address
+#define rv_offset(RV, MEMBER) ((int32_t)(((uintptr_t)&(RV->MEMBER)) - (uintptr_t)RV))
+
+static void set_pc(struct block_t *block, struct riscv_t *rv, cg_r32_t reg) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const int32_t offset = rv_offset(rv, PC);
+  cg_mov_r64disp_r32(cg, cg_rsi, offset, reg);
+}
+
+static void get_pc(struct block_t *block, struct riscv_t *rv, cg_r32_t reg) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const int32_t offset = rv_offset(rv, PC);
+  cg_mov_r32_r64disp(cg, reg, cg_rsi, offset);
+}
+
+static void get_reg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, uint32_t src) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  if (src == rv_reg_zero) {
+    cg_xor_r32_r32(cg, dst, dst);
+  }
+  else {
+    const int32_t offset = rv_offset(rv, X[src]);
+    cg_mov_r32_r64disp(cg, dst, cg_rsi, offset);
+  }
+}
+
+static void set_reg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_r32_t src) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  if (dst != rv_reg_zero) {
+    const int32_t offset = rv_offset(rv, X[dst]);
+    cg_mov_r64disp_r32(cg, cg_rsi, offset, src);
+  }
+}
+
+static void gen_prologue(struct block_t *block, struct riscv_t *rv) {
+  struct cg_state_t *cg = &block->cg;
+  // new stack frame
+  cg_push_r64(cg, cg_rbp);
+  cg_mov_r64_r64(cg, cg_rbp, cg_rsp);
+  cg_sub_r64_i32(cg, cg_rsp, 64);
+  // save rsi
+  cg_mov_r64disp_r64(cg, cg_rsp, 32, cg_rsi);
+  // move rv struct pointer into rsi
+  cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+}
+
+static void gen_epilogue(struct block_t *block, struct riscv_t *rv) {
+  struct cg_state_t *cg = &block->cg;
+  // restore rsi
+  cg_mov_r64_r64disp(cg, cg_rsi, cg_rsp, 32);
+  // leave stack frame
+  cg_mov_r64_r64(cg, cg_rsp, cg_rbp);
+  cg_pop_r64(cg, cg_rbp);
+}
 
 // a hash function is used when mapping addresses to indexes in the block map
 static uint32_t wang_hash(uint32_t a) {
@@ -38,37 +147,50 @@ static uint32_t wang_hash(uint32_t a) {
 }
 
 // allocate a new code block
-struct block_t *block_alloc(struct riscv_jit_t *jit) {
+static struct block_t *block_alloc(struct riscv_jit_t *jit) {
   // place a new block
   struct block_t *block = (struct block_t *)jit->head;
-  // set the initial block write head
-  block->head = 0;
+  struct cg_state_t *cg = &block->cg;
+  // set the initial codegen write head
+  cg_init(cg, block->code, jit->end);
   block->predict = NULL;
   return block;
 }
 
+// dump the code from a block
+static void block_dump(struct block_t *block, FILE *fd) {
+  fprintf(fd, "// %08x\n", block->pc_start);
+  const uint8_t *ptr = block->cg.start;
+  for (int i = 0; ptr + i < block->cg.head; ++i) {
+    fprintf(fd, (i && i % 16 == 0) ? "\n%02x " : "%02x ", (int)ptr[i]);
+  }
+  fprintf(fd, "\n");
+}
+
 // finialize a code block and insert into the block map
-void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
+static void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
   assert(jit && block && jit->head && jit->block_map);
+  struct cg_state_t *cg = &block->cg;
   // advance the block head ready for the next alloc
-  jit->head = block->code + block->head;
+  jit->head = block->code + cg_size(cg);
   // insert into the block map
   uint32_t index = wang_hash(block->pc_start);
   const uint32_t mask = jit->block_map_size - 1;
   for (;; ++index) {
     if (jit->block_map[index & mask] == NULL) {
       jit->block_map[index & mask] = block;
-      return;
+      break;
     }
   }
-#if RISCV_VM_X64_JIT
-  // flush the instructon cache for this block
-  FlushInstructionCache(GetCurrentProcess(), block->code, block->head);
+#if RISCV_DUMP_JIT_TRACE
+  block_dump(block, stdout);
 #endif
+  // flush the instructon cache for this block
+  sys_flush_icache(block->code, cg_size(cg));
 }
 
 // try to locate an already translated block in the block map
-struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
+static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
   assert(jit && jit->block_map);
   uint32_t index = wang_hash(addr);
   const uint32_t mask = jit->block_map_size - 1;
@@ -84,6 +206,9 @@ struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
 }
 
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
   const uint32_t rs1    = dec_rs1(inst);
@@ -98,51 +223,44 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     return true;
   }
 
-  // move rv into arg1
-  gen_mov_rcx_imm64(block, rv, (uint64_t)rv);
+  // arg1 - rv
+  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  // arg2 - address
+  get_reg(block, rv, cg_edx, rs1);
+  cg_add_r32_i32(cg, cg_edx, imm);
 
-  // move load address into arg 2
-  // rdx = rv->X[rs1] + imm;
-  gen_mov_edx_rv32reg(block, rv, rs1);
-  gen_add_edx_imm32(block, rv, imm);
-
-  uintptr_t offset;
+  int32_t offset;
 
   // dispatch by read size
   switch (funct3) {
   case 0: // LB
-    // rv->X[rd] = sign_extend_b(rv->io.mem_read_b(rv, addr));
-    offset = ((uintptr_t)&rv->io.mem_read_b) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
-    gen_movsx_eax_al(block, rv);
+    offset = rv_offset(rv, io.mem_read_b);
+    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_movsx_r32_r8(cg, cg_eax, cg_al);
     break;
   case 1: // LH
-    // rv->X[rd] = sign_extend_h(rv->io.mem_read_s(rv, addr));
-    offset = ((uintptr_t)&rv->io.mem_read_s) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
-    gen_movsx_eax_ax(block, rv);
+    offset = rv_offset(rv, io.mem_read_s);
+    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_movsx_r32_r16(cg, cg_eax, cg_ax);
     break;
   case 2: // LW
-    // rv->X[rd] = rv->io.mem_read_w(rv, addr);
-    offset = ((uintptr_t)&rv->io.mem_read_w) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_read_w);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 4: // LBU
-    // rv->X[rd] = rv->io.mem_read_b(rv, addr);
-    offset = ((uintptr_t)&rv->io.mem_read_b) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_read_b);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 5: // LHU
-    // rv->X[rd] = rv->io.mem_read_s(rv, addr);
-    offset = ((uintptr_t)&rv->io.mem_read_s) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_read_s);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   default:
     assert(!"unreachable");
     break;
   }
   // rv->X[rd] = rax
-  gen_mov_rv32reg_eax(block, rv, rd);
+  set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
   block->instructions += 1;
@@ -153,6 +271,9 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 static bool op_op_imm(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
   const uint32_t rd     = dec_rd(inst);
@@ -168,60 +289,51 @@ static bool op_op_imm(struct riscv_t *rv,
   }
 
   // eax = rv->X[rs1]
-  gen_mov_eax_rv32reg(block, rv, rs1);
+  get_reg(block, rv, cg_eax, rs1);
 
   // dispatch operation type
   switch (funct3) {
   case 0: // ADDI
-    // rv->X[rd] = (int32_t)(rv->X[rs1]) + imm;
-    gen_add_eax_imm32(block, rv, imm);
+    cg_add_r32_i32(cg, cg_eax, imm);
     break;
   case 1: // SLLI
-    // rv->X[rd] = rv->X[rs1] << (imm & 0x1f);
-    gen_shl_eax_imm8(block, rv, imm & 0x1f);
+    cg_shl_r32_i8(cg, cg_eax, imm & 0x1f);
     break;
   case 2: // SLTI
-    // rv->X[rd] = ((int32_t)(rv->X[rs1]) < imm) ? 1 : 0;
-    gen_cmp_eax_imm32(block, rv, imm);
-    gen_setl_dl(block, rv); // signed
-    gen_movzx_eax_dl(block, rv);
+    cg_cmp_r32_i32(cg, cg_eax, imm);
+    cg_setcc_r8(cg, cg_cc_lt, cg_dl);
+    cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 3: // SLTIU
-    // rv->X[rd] = (rv->X[rs1] < (uint32_t)imm) ? 1 : 0;
-    gen_cmp_eax_imm32(block, rv, imm);
-    gen_setb_dl(block, rv); // unsigned
-    gen_movzx_eax_dl(block, rv);
+    cg_cmp_r32_i32(cg, cg_eax, imm);
+    cg_setcc_r8(cg, cg_cc_c, cg_dl);
+    cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 4: // XORI
-    // rv->X[rd] = rv->X[rs1] ^ imm;
-    gen_xor_eax_imm32(block, rv, imm);
+    cg_xor_r32_i32(cg, cg_eax, imm);
     break;
   case 5:
     if (imm & ~0x1f) {
       // SRAI
-      // rv->X[rd] = ((int32_t)rv->X[rs1]) >> (imm & 0x1f);
-      gen_sar_eax_imm8(block, rv, imm & 0x1f);
+      cg_sar_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     else {
       // SRLI
-      // rv->X[rd] = rv->X[rs1] >> (imm & 0x1f);
-      gen_shr_eax_imm8(block, rv, imm & 0x1f);
+      cg_shr_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     break;
   case 6: // ORI
-    // rv->X[rd] = rv->X[rs1] | imm;
-    gen_or_eax_imm32(block, rv, imm);
+    cg_or_r32_i32(cg, cg_eax, imm);
     break;
   case 7: // ANDI
-    // rv->X[rd] = rv->X[rs1] & imm;
-    gen_and_eax_imm32(block, rv, imm);
+    cg_and_r32_i32(cg, cg_eax, imm);
     break;
   default:
     assert(!"unreachable");
     break;
   }
   // rv->X[rd] = eax
-  gen_mov_rv32reg_eax(block, rv, rd);
+  set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
   block->instructions += 1;
@@ -233,6 +345,9 @@ static bool op_op_imm(struct riscv_t *rv,
 static bool op_auipc(struct riscv_t *rv,
                      uint32_t inst,
                      struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // the effective current PC
   const uint32_t pc = block->pc_end;
   // u-type decode
@@ -248,8 +363,8 @@ static bool op_auipc(struct riscv_t *rv,
   }
 
   // rv->X[rd] = imm + rv->PC;
-  gen_mov_eax_imm32(block, rv, pc + imm);
-  gen_mov_rv32reg_eax(block, rv, rd);
+  cg_mov_r32_i32(cg, cg_eax, pc + imm);
+  set_reg(block, rv, rd, cg_eax);
 
   // step over instruction
   block->pc_end += 4;
@@ -261,46 +376,42 @@ static bool op_auipc(struct riscv_t *rv,
 static bool op_store(struct riscv_t *rv,
                      uint32_t inst,
                      struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // s-type format
   const int32_t  imm    = dec_stype_imm(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct3 = dec_funct3(inst);
 
-  // arg1
-  gen_mov_rcx_imm64(block, rv, (uint64_t)rv);
+  // arg1 - rv
+  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  // arg2 - addr
+  get_reg(block, rv, cg_edx, rs1);
+  cg_add_r32_i32(cg, cg_edx, imm);
+  // arg3 - data
+  get_reg(block, rv, cg_eax, rs2);
+  cg_mov_r64_r64(cg, cg_r8, cg_rax);
 
-  // arg2
-  // const uint32_t addr = rv->X[rs1] + imm;
-  gen_xor_rdx_rdx(block, rv);
-  gen_mov_edx_rv32reg(block, rv, rs1);
-  gen_add_edx_imm32(block, rv, imm);
-
-  // arg3
-  // const uint32_t data = rv->X[rs2];
-  // XXX: coult drop the xor here as we care about lower 32bits?
-  gen_xor_rax_rax(block, rv);
-  gen_mov_eax_rv32reg(block, rv, rs2);
-  gen_mov_r8_rax(block, rv);
-
-  uintptr_t offset;
+  int32_t offset;
 
   // dispatch by write size
   switch (funct3) {
   case 0: // SB
     // rv->io.mem_write_b(rv, addr, data);
-    offset = ((uintptr_t)&rv->io.mem_write_b) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_write_b);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 1: // SH
     // rv->io.mem_write_s(rv, addr, data);
-    offset = ((uintptr_t)&rv->io.mem_write_s) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_write_s);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 2: // SW
     // rv->io.mem_write_w(rv, addr, data);
-    offset = ((uintptr_t)&rv->io.mem_write_w) - (uintptr_t)rv;
-    gen_call_rsiindex(block, rv, (uint32_t)offset);
+    offset = rv_offset(rv, io.mem_write_w);
+    cg_call_r64disp(cg, cg_rsi, offset);
     break;
   default:
     assert(!"unreachable");
@@ -314,6 +425,9 @@ static bool op_store(struct riscv_t *rv,
 }
 
 static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // effective pc
   const uint32_t pc = block->pc_end;
   // r-type decode
@@ -332,49 +446,41 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
 
   // get operands
-  gen_mov_eax_rv32reg(block, rv, rs1);
-  gen_mov_ecx_rv32reg(block, rv, rs2);
+  get_reg(block, rv, cg_eax, rs1);
+  get_reg(block, rv, cg_ecx, rs2);
 
   switch (funct7) {
   case 0b0000000:
     switch (funct3) {
     case 0b000: // ADD
-      // rv->X[rd] = (int32_t)(rv->X[rs1]) + (int32_t)(rv->X[rs2]);
-      gen_add_eax_ecx(block, rv);
+      cg_add_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b001: // SLL
-      // rv->X[rd] = rv->X[rs1] << (rv->X[rs2] & 0x1f);
-      gen_and_cl_imm8(block, rv, 0x1f);
-      gen_shl_eax_cl(block, rv);
+      cg_and_r8_i8(cg, cg_cl, 0x1f);
+      cg_shl_r32_cl(cg, cg_eax);
       break;
     case 0b010: // SLT
-      // rv->X[rd] = ((int32_t)(rv->X[rs1]) < (int32_t)(rv->X[rs2])) ? 1 : 0;
-      gen_cmp_eax_ecx(block, rv);
-      gen_setl_dl(block, rv); // signed
-      gen_movzx_eax_dl(block, rv);
+      cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
+      cg_setcc_r8(cg, cg_cc_lt, cg_dl);
+      cg_movzx_r32_r8(cg, cg_eax, cg_dl);
       break;
     case 0b011: // SLTU
-      // rv->X[rd] = (rv->X[rs1] < rv->X[rs2]) ? 1 : 0;
-      gen_cmp_eax_ecx(block, rv);
-      gen_setb_dl(block, rv); // unsigned
-      gen_movzx_eax_dl(block, rv);
+      cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
+      cg_setcc_r8(cg, cg_cc_c, cg_dl);
+      cg_movzx_r32_r8(cg, cg_eax, cg_dl);
       break;
     case 0b100: // XOR
-      // rv->X[rd] = rv->X[rs1] ^ rv->X[rs2];
-      gen_xor_eax_ecx(block, rv);
+      cg_xor_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b101: // SRL
-      // rv->X[rd] = rv->X[rs1] >> (rv->X[rs2] & 0x1f);
-      gen_and_cl_imm8(block, rv, 0x1f);
-      gen_shr_eax_cl(block, rv);
+      cg_and_r8_i8(cg, cg_cl, 0x1f);
+      cg_shr_r32_cl(cg, cg_eax);
       break;
     case 0b110: // OR
-      // rv->X[rd] = rv->X[rs1] | rv->X[rs2];
-      gen_or_eax_ecx(block, rv);
+      cg_or_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b111: // AND
-      // rv->X[rd] = rv->X[rs1] & rv->X[rs2];
-      gen_and_eax_ecx(block, rv);
+      cg_and_r32_r32(cg, cg_eax, cg_ecx);
       break;
     default:
       assert(!"unreachable");
@@ -384,13 +490,11 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   case 0b0100000:
     switch (funct3) {
     case 0b000: // SUB
-      // rv->X[rd] = (int32_t)(rv->X[rs1]) - (int32_t)(rv->X[rs2]);
-      gen_sub_eax_ecx(block, rv);
+      cg_sub_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b101: // SRA
-      // rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
-      gen_and_cl_imm8(block, rv, 0x1f);
-      gen_sar_eax_cl(block, rv);
+      cg_and_r8_i8(cg, cg_cl, 0x1f);
+      cg_sar_r32_cl(cg, cg_eax);
       break;
     default:
       assert(!"unreachable");
@@ -403,11 +507,11 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     // RV32M instructions
     switch (funct3) {
     case 0b000: // MUL
-      gen_imul_ecx(block, rv);
+      cg_imul_r32(cg, cg_ecx);
       break;
     case 0b001: // MULH
-      gen_imul_ecx(block, rv);
-      gen_mov_eax_edx(block, rv);
+      cg_imul_r32(cg, cg_ecx);
+      cg_mov_r32_r32(cg, cg_eax, cg_edx);
       break;
     case 0b010: // MULHSU
       // const int64_t a = (int32_t)rv->X[rs1];
@@ -415,14 +519,14 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // rv->X[rd] = ((uint64_t)(a * b)) >> 32;
 
       // cant translate this instruction - terminate block
-      gen_mov_eax_imm32(block, rv, pc);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, pc);
+      set_pc(block, rv, cg_eax);
       return false;
 
       break;
     case 0b011: // MULHU
-      gen_mul_ecx(block, rv);
-      gen_mov_eax_edx(block, rv);
+      cg_imul_r32(cg, cg_ecx);
+      cg_mov_r32_r32(cg, cg_eax, cg_edx);
       break;
     case 0b100: // DIV
     {
@@ -439,8 +543,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // }
 
       // cant translate this instruction - terminate block
-      gen_mov_eax_imm32(block, rv, pc);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, pc);
+      set_pc(block, rv, cg_eax);
       return false;
 
     }
@@ -457,8 +561,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // }
 
       // cant translate this instruction - terminate block
-      gen_mov_eax_imm32(block, rv, pc);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, pc);
+      set_pc(block, rv, cg_eax);
       return false;
 
     }
@@ -478,8 +582,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // }
 
       // cant translate this instruction - terminate block
-      gen_mov_eax_imm32(block, rv, pc);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, pc);
+      set_pc(block, rv, cg_eax);
       return false;
 
     }
@@ -496,8 +600,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       // }
 
       // cant translate this instruction - terminate block
-      gen_mov_eax_imm32(block, rv, pc);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, pc);
+      set_pc(block, rv, cg_eax);
       return false;
 
     }
@@ -514,7 +618,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
 
   // rv->X[rd] = rax
-  gen_mov_rv32reg_eax(block, rv, rd);
+  set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -523,13 +627,16 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 }
 
 static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // u-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t val = dec_utype_imm(inst);
   // rv->X[rd] = val;
   if (rd != rv_reg_zero) {
-    gen_mov_eax_imm32(block, rv, val);
-    gen_mov_rv32reg_eax(block, rv, rd);
+    cg_mov_r32_i32(cg, cg_eax, val);
+    set_reg(block, rv, rd, cg_eax);
   }
   // step over instruction
   block->instructions += 1;
@@ -541,6 +648,9 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 static bool op_branch(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // the effective current PC
   const uint32_t pc = block->pc_end;
   // b-type decode
@@ -549,43 +659,38 @@ static bool op_branch(struct riscv_t *rv,
   const uint32_t rs1   = dec_rs1(inst);
   const uint32_t rs2   = dec_rs2(inst);
   // perform the compare
-  gen_mov_eax_rv32reg(block, rv, rs1);
-  gen_mov_ecx_rv32reg(block, rv, rs2);
-  gen_cmp_eax_ecx(block, rv);
+  get_reg(block, rv, cg_eax, rs1);
+  get_reg(block, rv, cg_ecx, rs2);
+  cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
   // load both targets
-  gen_mov_eax_imm32(block, rv, pc + 4);
-  gen_mov_edx_imm32(block, rv, pc + imm);
+  cg_mov_r32_i32(cg, cg_eax, pc + 4);
+  cg_mov_r32_i32(cg, cg_edx, pc + imm);
+
   // dispatch by branch type
   switch (func3) {
   case 0: // BEQ
-    // taken = (rv->X[rs1] == rv->X[rs2]);
-    gen_cmove_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_eq, cg_eax, cg_edx);
     break;
   case 1: // BNE
-    // taken = (rv->X[rs1] != rv->X[rs2]);
-    gen_cmovne_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_ne, cg_eax, cg_edx);
     break;
   case 4: // BLT
-    // taken = ((int32_t)rv->X[rs1] < (int32_t)rv->X[rs2]);
-    gen_cmovl_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_lt, cg_eax, cg_edx);
     break;
   case 5: // BGE
-    // taken = ((int32_t)rv->X[rs1] >= (int32_t)rv->X[rs2]);
-    gen_cmovge_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_ge, cg_eax, cg_edx);
     break;
   case 6: // BLTU
-    // taken = (rv->X[rs1] < rv->X[rs2]);
-    gen_cmovb_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_c, cg_eax, cg_edx);
     break;
   case 7: // BGEU
-    // taken = (rv->X[rs1] >= rv->X[rs2]);
-    gen_cmovnb_eax_edx(block, rv);
+    cg_cmov_r32_r32(cg, cg_cc_ae, cg_eax, cg_edx);
     break;
   default:
     assert(!"unreachable");
   }
   // load PC with the target
-  gen_mov_rv32pc_eax(block, rv);
+  set_pc(block, rv, cg_eax);
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -594,6 +699,9 @@ static bool op_branch(struct riscv_t *rv,
 }
 
 static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // the effective current PC
   const uint32_t pc = block->pc_end;
   // i-type decode
@@ -603,22 +711,23 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   // jump
   // note: we also clear the least significant bit of pc
-  gen_mov_eax_rv32reg(block, rv, rs1);
-  gen_add_eax_imm32(block, rv, imm);
-  gen_and_eax_imm32(block, rv, 0xfffffffe);
-  gen_mov_rv32pc_eax(block, rv);
+  get_reg(block, rv, cg_eax, rs1);
+  cg_add_r32_i32(cg, cg_eax, imm);
+  cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
+  set_pc(block, rv, cg_eax);
 
   // link
   if (rd != rv_reg_zero) {
-    const uint32_t ret_addr = pc + 4;
-    gen_mov_eax_imm32(block, rv, ret_addr);
-    gen_mov_rv32reg_eax(block, rv, rd);
+    cg_mov_r32_i32(cg, cg_eax, pc + 4);
+    set_reg(block, rv, rd, cg_eax);
   }
 
+#if RISCV_SUPPORT_MACHINE
   // check for exception
   // if (rv->PC & 0x3) {
   //   raise_exception(rv, rv_except_inst_misaligned);
   // }
+#endif
 
   // step over instruction
   block->instructions += 1;
@@ -628,6 +737,9 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 }
 
 static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // the effective current PC
   const uint32_t pc = block->pc_end;
   // j-type decode
@@ -637,20 +749,21 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // jump
   // note: rel is aligned to a two byte boundary so we dont needs to do any
   //       masking here.
-  gen_mov_eax_imm32(block, rv, pc + rel);
-  gen_mov_rv32pc_eax(block, rv);
+  cg_mov_r32_i32(cg, cg_eax, pc + rel);
+  set_pc(block, rv, cg_eax);
 
   // link
   if (rd != rv_reg_zero) {
-    const uint32_t ret_addr = pc + 4;
-    gen_mov_eax_imm32(block, rv, ret_addr);
-    gen_mov_rv32reg_eax(block, rv, rd);
+    cg_mov_r32_i32(cg, cg_eax, pc + 4);
+    set_reg(block, rv, rd, cg_eax);
   }
 
+#if RISCV_SUPPORT_MACHINE
   // check alignment of PC
   // if (rv->PC & 0x3) {
   //   raise_exception(rv, rv_except_inst_misaligned);
   // }
+#endif
 
   // step over instruction
   block->instructions += 1;
@@ -662,6 +775,9 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 static bool op_system(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
   // the effective current PC
   const uint32_t pc = block->pc_end;
   // i-type decode
@@ -671,14 +787,14 @@ static bool op_system(struct riscv_t *rv,
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rd     = dec_rd(inst);
 
-  // arg1
-  gen_mov_rcx_imm64(block, rv, (uint64_t)rv);
-  // arg2
-  gen_mov_edx_imm32(block, rv, pc);
-  // arg3
-  gen_mov_r8_imm32(block, rv, inst);
+  // arg1 - rv
+  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  // arg2 - pc
+  cg_mov_r32_i32(cg, cg_edx, pc);
+  // arg3 - instruction
+  cg_mov_r64_i32(cg, cg_r8, inst);
 
-  uintptr_t offset;
+  int32_t offset;
 
   // dispatch by func3 field
   switch (funct3) {
@@ -686,14 +802,12 @@ static bool op_system(struct riscv_t *rv,
     // dispatch from imm field
     switch (imm) {
     case 0: // ECALL
-      // rv->io.on_ecall(rv, rv->PC, inst);
-      offset = ((uintptr_t)&rv->io.on_ecall) - (uintptr_t)rv;
-      gen_call_rsiindex(block, rv, (uint32_t)offset);
+      offset = rv_offset(rv, io.on_ecall);
+      cg_call_r64disp(cg, cg_rsi, offset);
       break;
     case 1: // EBREAK
-      // rv->io.on_ebreak(rv, rv->PC, inst);
-      offset = ((uintptr_t)&rv->io.on_ebreak) - (uintptr_t)rv;
-      gen_call_rsiindex(block, rv, (uint32_t)offset);
+      offset = rv_offset(rv, io.on_ebreak);
+      cg_call_r64disp(cg, cg_rsi, offset);
       break;
     default:
       assert(!"unreachable");
@@ -706,22 +820,16 @@ static bool op_system(struct riscv_t *rv,
     break;
   default:
     // cant translate this instruction - terminate block
-    gen_mov_eax_imm32(block, rv, pc);
-    gen_mov_rv32pc_eax(block, rv);
+    cg_mov_r32_i32(cg, cg_eax, pc);
+    set_pc(block, rv, cg_eax);
     return false;
   }
-
-  // step over to next instruction
-  // XXX: this effectively stops ecall or ebreak changing PC
-  gen_mov_eax_imm32(block, rv, pc + 4);
-  gen_mov_rv32pc_eax(block, rv);
 
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
 
-  // could branch
-  // XXX: could set this to true for now
+  // XXX: assume we wont branch for now but will need to be updated later
   return true;
 }
 
@@ -740,18 +848,19 @@ static const opcode_t opcodes[] = {
 };
 
 static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
-  assert(rv);
+  assert(rv && block);
 
-  JITPRINTF("// %08xh\n", rv->PC);
+  struct cg_state_t *cg = &block->cg;
 
   // setup the basic block
   block->instructions = 0;
   block->pc_start = rv->PC;
   block->pc_end = rv->PC;
-  block->head = 0;
 
+  // prologue
   gen_prologue(block, rv);
 
+  // translate the basic block
   for (;;) {
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
@@ -759,20 +868,20 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     // find translation function
     const opcode_t op = opcodes[index];
     if (!op) {
+      // we dont have a handler for this instruction so end basic block
       // make sure PC gets updated
-      gen_mov_eax_imm32(block, rv, block->pc_end);
-      gen_mov_rv32pc_eax(block, rv);
+      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
+      set_pc(block, rv, cg_eax);
       break;
     }
     if (!op(rv, inst, block)) {
       break;
     }
-//    JITPRINTF("// %08xh\n", block->pc_end);
   }
 
-  // finalize the basic block
+  // epilogue
   gen_epilogue(block, rv);
-  gen_ret(block, rv);
+  cg_ret(cg);
 }
 
 struct block_t *block_find_or_translate(struct riscv_t *rv,
@@ -841,8 +950,6 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
 }
 
 bool rv_init_jit(struct riscv_t *rv) {
-  static const uint32_t code_size = 1024 * 1024 * 4;
-  static const uint32_t map_size = 1024 * 64;
 
   struct riscv_jit_t *jit = &rv->jit;
 
@@ -853,17 +960,14 @@ bool rv_init_jit(struct riscv_t *rv) {
     memset(jit->block_map, 0, map_size * sizeof(struct block_t*));
   }
 
-#if RISCV_VM_X64_JIT
   // allocate block/code storage space
   if (jit->start == NULL) {
-    void *ptr = VirtualAlloc(
-      NULL, code_size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    void *ptr = sys_alloc_exec_mem(code_size);
     memset(ptr, 0xcc, code_size);
     jit->start = ptr;
-    jit->end = jit->start + code_size;
     jit->head = ptr;
+    jit->end = jit->start + code_size;
   }
-#endif
 
   return true;
 }

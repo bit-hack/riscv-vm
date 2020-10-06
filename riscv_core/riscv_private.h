@@ -4,6 +4,8 @@
 #include "riscv_conf.h"
 #include "riscv.h"
 
+#include "../tinycg/tinycg.h"
+
 #define RV_NUM_REGS 32
 
 // csrs
@@ -67,8 +69,9 @@ struct block_t {
   uint32_t pc_end;
   // next block prediction
   struct block_t *predict;
-  // number of bytes that have been emitted
-  uint32_t head;
+  // code gen structure
+  struct cg_state_t cg;
+  // start of this blocks code
   uint8_t code[];
 };
 

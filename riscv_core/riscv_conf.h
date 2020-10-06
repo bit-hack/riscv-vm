@@ -24,6 +24,12 @@
 #ifndef RISCV_VM_X64_JIT
 #define RISCV_VM_X64_JIT           0
 #endif
+// enable machine mode support
+#ifndef RISCV_SUPPORT_MACHINE
+#define RISCV_SUPPORT_MACHINE      0
+#endif
+
+#define RISCV_DUMP_JIT_TRACE       0
 
 // default top of stack address
 #define DEFAULT_STACK_ADDR (0xFFFFF000)

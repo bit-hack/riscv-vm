@@ -72,9 +72,14 @@ set(LIB_SRC
     "riscv_core/riscv_private.h"
     "riscv_core/riscv_common.c"
     "riscv_core/riscv_jit.c"
-    "riscv_core/riscv_jit.h"
     )
 add_library(riscv_core ${LIB_SRC})
+
+set(TINYCG_SRC
+    "tinycg/tinycg.c"
+    "tinycg/tinycg.h"
+    )
+add_library(tinycg ${TINYCG_SRC})
 
 set(DRV_SRC
     "riscv_vm/elf.h"
@@ -88,7 +93,7 @@ set(DRV_SRC
     )
 
 add_executable(riscv_vm ${DRV_SRC})
-target_link_libraries(riscv_vm riscv_core)
+target_link_libraries(riscv_vm riscv_core tinycg)
 
 if (${RVVM_USE_SDL})
     target_link_libraries(riscv_vm ${SDL_LIBRARY})
