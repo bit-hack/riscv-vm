@@ -16,14 +16,22 @@ enum {
   op_xor,
   op_sltu,
   op_slt,
+  op_shr,
+  op_sar,
   op_shl,
-  op_sal,
-  op_sll,
   op_mul,
   op_imul,
+  op_sb,
+  op_sh,
+  op_sw,
+  op_lb,
+  op_lh,
+  op_lw,
+  op_lbu,
+  op_lhu,
 };
 
-struct ir_inst_t *ir_alloc(struct ir_block_t *block) {
+static struct ir_inst_t *ir_alloc(struct ir_block_t *block) {
   struct ir_inst_t *i = block->inst + (block->head++);
   assert(block->head < IR_MAX_INST);
   memset(i, 0, sizeof(struct ir_inst_t));
@@ -127,29 +135,29 @@ struct ir_inst_t *ir_slt(struct ir_block_t *block, struct ir_inst_t *lhs, struct
   return i;
 }
 
+struct ir_inst_t *ir_shr(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_shr;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_sar(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_sar;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
 struct ir_inst_t *ir_shl(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   struct ir_inst_t *i = ir_alloc(block);
   i->op = op_shl;
-  i->lhs = lhs;
-  i->rhs = rhs;
-  lhs->parent = i;
-  rhs->parent = i;
-  return i;
-}
-
-struct ir_inst_t *ir_sal(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
-  struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sal;
-  i->lhs = lhs;
-  i->rhs = rhs;
-  lhs->parent = i;
-  rhs->parent = i;
-  return i;
-}
-
-struct ir_inst_t *ir_sll(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
-  struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sll;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -174,5 +182,64 @@ struct ir_inst_t *ir_imul(struct ir_block_t *block, struct ir_inst_t *lhs, struc
   i->rhs = rhs;
   lhs->parent = i;
   rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_sb(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_sb;
+  i->value = val;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_sh(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_sh;
+  i->value = val;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_sw(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_sw;
+  i->value = val;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_lb(struct ir_block_t *block, struct ir_inst_t *addr) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_lb;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_lh(struct ir_block_t *block, struct ir_inst_t *addr) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_lh;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_lw(struct ir_block_t *block, struct ir_inst_t *addr) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_lw;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_lbu(struct ir_block_t *block, struct ir_inst_t *addr) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_lbu;
+  i->addr = addr;
+  return i;
+}
+
+struct ir_inst_t *ir_lhu(struct ir_block_t *block, struct ir_inst_t *addr) {
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_lhu;
+  i->addr = addr;
   return i;
 }

@@ -208,6 +208,7 @@ static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *builder) {
   struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
+  struct ir_block_t *z = &builder->ir;
 
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -231,27 +232,41 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *b
 
   int32_t offset;
 
+  // generate load address
+  struct ir_inst_t *ir_addr = ir_add(z, ir_ld_reg(z, rs1), ir_imm(z, imm));
+  struct ir_inst_t *ir_load = NULL;
+
   // dispatch by read size
   switch (funct3) {
   case 0: // LB
+    ir_load = ir_lb(z, ir_addr);
+
     offset = rv_offset(rv, io.mem_read_b);
     cg_call_r64disp(cg, cg_rsi, offset);
     cg_movsx_r32_r8(cg, cg_eax, cg_al);
     break;
   case 1: // LH
+    ir_load = ir_lh(z, ir_addr);
+
     offset = rv_offset(rv, io.mem_read_s);
     cg_call_r64disp(cg, cg_rsi, offset);
     cg_movsx_r32_r16(cg, cg_eax, cg_ax);
     break;
   case 2: // LW
+    ir_load = ir_lw(z, ir_addr);
+
     offset = rv_offset(rv, io.mem_read_w);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 4: // LBU
+    ir_load = ir_lbu(z, ir_addr);
+
     offset = rv_offset(rv, io.mem_read_b);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 5: // LHU
+    ir_load = ir_lhu(z, ir_addr);
+
     offset = rv_offset(rv, io.mem_read_s);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
@@ -260,6 +275,8 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *b
     break;
   }
   // rv->X[rd] = rax
+  assert(ir_load);
+  ir_st_reg(z, rd, ir_load);
   set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
@@ -273,6 +290,7 @@ static bool op_op_imm(struct riscv_t *rv,
                       struct block_builder_t *builder) {
   struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
+  struct ir_block_t *z = &builder->ir;
 
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
@@ -291,41 +309,53 @@ static bool op_op_imm(struct riscv_t *rv,
   // eax = rv->X[rs1]
   get_reg(block, rv, cg_eax, rs1);
 
+  struct ir_inst_t *lhs = ir_ld_reg(z, rs1);
+  struct ir_inst_t *res = NULL;
+
   // dispatch operation type
   switch (funct3) {
   case 0: // ADDI
+    res = ir_add(z, lhs, ir_imm(z, imm));
     cg_add_r32_i32(cg, cg_eax, imm);
     break;
   case 1: // SLLI
+    res = ir_shl(z, lhs, ir_imm(z, imm & 0x1f));
     cg_shl_r32_i8(cg, cg_eax, imm & 0x1f);
     break;
   case 2: // SLTI
+    res = ir_slt(z, lhs, ir_imm(z, imm));
     cg_cmp_r32_i32(cg, cg_eax, imm);
     cg_setcc_r8(cg, cg_cc_lt, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 3: // SLTIU
+    res = ir_sltu(z, lhs, ir_imm(z, imm));
     cg_cmp_r32_i32(cg, cg_eax, imm);
     cg_setcc_r8(cg, cg_cc_c, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 4: // XORI
+    res = ir_xor(z, lhs, ir_imm(z, imm));
     cg_xor_r32_i32(cg, cg_eax, imm);
     break;
   case 5:
     if (imm & ~0x1f) {
       // SRAI
+      res = ir_sar(z, lhs, ir_imm(z, imm & 0x1f));
       cg_sar_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     else {
       // SRLI
+      res = ir_shr(z, lhs, ir_imm(z, imm & 0x1f));
       cg_shr_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     break;
   case 6: // ORI
+    res = ir_or(z, lhs, ir_imm(z, imm));
     cg_or_r32_i32(cg, cg_eax, imm);
     break;
   case 7: // ANDI
+    res = ir_and(z, lhs, ir_imm(z, imm));
     cg_and_r32_i32(cg, cg_eax, imm);
     break;
   default:
@@ -333,6 +363,8 @@ static bool op_op_imm(struct riscv_t *rv,
     break;
   }
   // rv->X[rd] = eax
+  assert(res);
+  ir_st_reg(z, rd, res);
   set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
