@@ -5,6 +5,7 @@
 #include "riscv.h"
 
 #include "../tinycg/tinycg.h"
+#include "ir.h"
 
 #define RV_NUM_REGS 32
 
@@ -73,6 +74,12 @@ struct block_t {
   struct cg_state_t cg;
   // start of this blocks code
   uint8_t code[];
+};
+
+struct block_builder_t {
+  struct block_t *block;
+  struct ir_block_t ir;
+  // TODO: move cg in here?
 };
 
 struct riscv_jit_t {

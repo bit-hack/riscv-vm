@@ -72,6 +72,8 @@ set(LIB_SRC
     "riscv_core/riscv_private.h"
     "riscv_core/riscv_common.c"
     "riscv_core/riscv_jit.c"
+    "riscv_core/ir.h"
+    "riscv_core/ir.c"
     )
 add_library(riscv_core ${LIB_SRC})
 

@@ -205,8 +205,8 @@ static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
   }
 }
 
-static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
-
+static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // itype format
@@ -270,8 +270,8 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
 static bool op_op_imm(struct riscv_t *rv,
                       uint32_t inst,
-                      struct block_t *block) {
-
+                      struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // i-type decode
@@ -344,7 +344,8 @@ static bool op_op_imm(struct riscv_t *rv,
 // add upper immediate to pc
 static bool op_auipc(struct riscv_t *rv,
                      uint32_t inst,
-                     struct block_t *block) {
+                     struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
 
   struct cg_state_t *cg = &block->cg;
 
@@ -375,8 +376,8 @@ static bool op_auipc(struct riscv_t *rv,
 
 static bool op_store(struct riscv_t *rv,
                      uint32_t inst,
-                     struct block_t *block) {
-
+                     struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // s-type format
@@ -424,8 +425,10 @@ static bool op_store(struct riscv_t *rv,
   return true;
 }
 
-static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
-
+static bool op_op(struct riscv_t *rv,
+                  uint32_t inst,
+                  struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // effective pc
@@ -626,8 +629,10 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   return true;
 }
 
-static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
-
+static bool op_lui(struct riscv_t *rv,
+                   uint32_t inst,
+                   struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // u-type decode
@@ -647,8 +652,8 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
 static bool op_branch(struct riscv_t *rv,
                       uint32_t inst,
-                      struct block_t *block) {
-
+                      struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -698,8 +703,10 @@ static bool op_branch(struct riscv_t *rv,
   return false;
 }
 
-static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
-
+static bool op_jalr(struct riscv_t *rv,
+                    uint32_t inst,
+                    struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -736,8 +743,10 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   return false;
 }
 
-static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
-
+static bool op_jal(struct riscv_t *rv,
+                   uint32_t inst,
+                   struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -774,8 +783,8 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
 static bool op_system(struct riscv_t *rv,
                       uint32_t inst,
-                      struct block_t *block) {
-
+                      struct block_builder_t *builder) {
+  struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -836,7 +845,7 @@ static bool op_system(struct riscv_t *rv,
 // opcode handler type
 typedef bool(*opcode_t)(struct riscv_t *rv,
                         uint32_t inst,
-                        struct block_t *block);
+                        struct block_builder_t *builder);
 
 // opcode dispatch table
 static const opcode_t opcodes[] = {
@@ -849,6 +858,10 @@ static const opcode_t opcodes[] = {
 
 static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   assert(rv && block);
+
+  struct block_builder_t builder;
+  builder.block = block;
+  ir_init(&builder.ir);
 
   struct cg_state_t *cg = &block->cg;
 
@@ -874,7 +887,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
       set_pc(block, rv, cg_eax);
       break;
     }
-    if (!op(rv, inst, block)) {
+    if (!op(rv, inst, &builder)) {
       break;
     }
   }
