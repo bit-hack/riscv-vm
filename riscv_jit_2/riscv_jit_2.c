@@ -266,6 +266,40 @@ static bool op_op(struct riscv_t *rv,
       break;
     }
     break;
+#if RISCV_VM_SUPPORT_RV32M
+  case 0b0000001:
+    // RV32M instructions
+    switch (funct3) {
+    case 0b000: // MUL
+      res = ir_mul(z, lhs, rhs);
+      break;
+    case 0b001: // MULH
+      res = ir_mulh(z, lhs, rhs);
+      break;
+    case 0b010: // MULHSU
+      res = ir_mulhsu(z, lhs, rhs);
+      break;
+    case 0b011: // MULHU
+      res = ir_mulhu(z, lhs, rhs);
+      break;
+    case 0b100: // DIV
+      res = ir_div(z, lhs, rhs);
+      break;
+    case 0b101: // DIVU
+      res = ir_divu(z, lhs, rhs);
+      break;
+    case 0b110: // REM
+      res = ir_rem(z, lhs, rhs);
+      break;
+    case 0b111: // REMU
+      res = ir_remu(z, lhs, rhs);
+      break;
+    default:
+      assert(!"unreachable");
+      break;
+    }
+    break;
+#endif  // RISCV_VM_SUPPORT_RV32M
   default:
     assert(!"unreachable");
     break;
@@ -467,7 +501,7 @@ static const opcode_t opcodes[] = {
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
-static int32_t rv_block_eval(struct riscv_t *rv) {
+bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
   assert(rv);
 
   struct ir_builder_t builder;
@@ -498,12 +532,8 @@ static int32_t rv_block_eval(struct riscv_t *rv) {
   // evaluate the IR
   ir_eval(z, rv);
 
-  return builder.instructions;
-}
-
-bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
-  int32_t retired = rv_block_eval(rv);
-  return retired > 0;
+  rv->csr_cycle += builder.instructions;
+  return builder.instructions > 0;
 }
 
 bool rv_init_jit(struct riscv_t *rv) {

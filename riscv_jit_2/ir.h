@@ -54,7 +54,14 @@ struct ir_inst_t *ir_shr    (struct ir_block_t *, struct ir_inst_t *lhs, struct 
 struct ir_inst_t *ir_sar    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
 struct ir_inst_t *ir_shl    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
 struct ir_inst_t *ir_mul    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
-struct ir_inst_t *ir_imul   (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_mulh   (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_mulhsu (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_mulhu  (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_div    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_divu   (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_rem    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+struct ir_inst_t *ir_remu   (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
+
 // compare
 struct ir_inst_t *ir_eq     (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);
 struct ir_inst_t *ir_neq    (struct ir_block_t *, struct ir_inst_t *lhs, struct ir_inst_t *rhs);

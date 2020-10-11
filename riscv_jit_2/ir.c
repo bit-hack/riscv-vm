@@ -24,7 +24,13 @@ enum {
   op_sar,
   op_shl,
   op_mul,
-  op_imul,
+  op_mulh,
+  op_mulhsu,
+  op_mulhu,
+  op_div,
+  op_divu,
+  op_rem,
+  op_remu,
 
   op_eq,
   op_neq,
@@ -192,10 +198,76 @@ struct ir_inst_t *ir_mul(struct ir_block_t *block, struct ir_inst_t *lhs, struct
   return i;
 }
 
-struct ir_inst_t *ir_imul(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+struct ir_inst_t *ir_mulh(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_imul;
+  i->op = op_mulh;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_mulhsu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_mulhsu;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_mulhu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_mulhu;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_div(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_div;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_divu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_divu;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_rem(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_rem;
+  i->lhs = lhs;
+  i->rhs = rhs;
+  lhs->parent = i;
+  rhs->parent = i;
+  return i;
+}
+
+struct ir_inst_t *ir_remu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
+  assert(block && lhs && rhs);
+  struct ir_inst_t *i = ir_alloc(block);
+  i->op = op_remu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -408,10 +480,67 @@ static int32_t eval(struct riscv_t *rv, const struct ir_inst_t *i) {
     return eval(rv, i->lhs) >> eval(rv, i->rhs);
   case op_shl:
     return (uint32_t)eval(rv, i->lhs) << (uint32_t)eval(rv, i->rhs);
+
   case op_mul:
-    return (uint32_t)eval(rv, i->lhs) * (uint32_t)eval(rv, i->rhs);
-  case op_imul:
-    return eval(rv, i->lhs) * eval(rv, i->rhs);
+    return (int32_t)eval(rv, i->lhs) * (int32_t)eval(rv, i->rhs);
+  case op_mulh:
+  {
+    const int64_t a = (int64_t)eval(rv, i->lhs);
+    const int64_t b = (int64_t)eval(rv, i->rhs);
+    return ((uint64_t)(a * b)) >> 32;
+  }
+  case op_mulhsu:
+  {
+    const int64_t a = (int64_t)eval(rv, i->lhs);
+    const uint64_t b = (uint32_t)eval(rv, i->rhs);
+    return ((uint64_t)(a * b)) >> 32;
+  }
+  case op_mulhu:
+  {
+    const uint64_t a = ((uint32_t)eval(rv, i->lhs));
+    const uint64_t b = ((uint32_t)eval(rv, i->rhs));
+    return (a * b) >> 32;
+  }
+  case op_div:
+  {
+    const int32_t dividend = eval(rv, i->lhs);
+    const int32_t divisor = eval(rv, i->rhs);
+    if (divisor == 0) {
+      return ~0u;
+    }
+    else if (divisor == -1 && dividend == 0x80000000u) {
+      return dividend;
+    }
+    else {
+      return dividend / divisor;
+    }
+  }
+  case op_divu:
+  {
+    const uint32_t dividend = eval(rv, i->lhs);
+    const uint32_t divisor = eval(rv, i->rhs);
+    return (divisor == 0) ? ~0u : (dividend / divisor);
+  }
+  case op_rem:
+  {
+    const int32_t dividend = eval(rv, i->lhs);
+    const int32_t divisor = eval(rv, i->rhs);
+    if (divisor == 0) {
+      return dividend;
+    }
+    else if (divisor == -1 && dividend == 0x80000000u) {
+      return 0;
+    }
+    else {
+      return dividend % divisor;
+    }
+  }
+  case op_remu:
+  {
+    const uint32_t dividend = eval(rv, i->lhs);
+    const uint32_t divisor = eval(rv, i->rhs);
+    return (divisor == 0) ? dividend : (dividend % divisor);
+  }
   case op_eq:
     return eval(rv, i->lhs) == eval(rv, i->rhs);
   case op_neq:
