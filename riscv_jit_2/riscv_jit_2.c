@@ -10,8 +10,11 @@
 #include "riscv_jit_2.h"
 
 
+static uint8_t ir_space[1024 * 1024];
+
+
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -64,7 +67,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct ir_builder_t *buil
 static bool op_op_imm(struct riscv_t *rv,
                       uint32_t inst,
                       struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
@@ -133,7 +136,7 @@ static bool op_op_imm(struct riscv_t *rv,
 static bool op_auipc(struct riscv_t *rv,
                      uint32_t inst,
                      struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // the effective current PC
   const uint32_t pc = builder->pc;
@@ -162,7 +165,7 @@ static bool op_auipc(struct riscv_t *rv,
 static bool op_store(struct riscv_t *rv,
                      uint32_t inst,
                      struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // s-type format
   const int32_t  imm    = dec_stype_imm(inst);
@@ -198,7 +201,7 @@ static bool op_store(struct riscv_t *rv,
 static bool op_op(struct riscv_t *rv,
                   uint32_t inst,
                   struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // effective pc
   const uint32_t pc = builder->pc;
@@ -316,7 +319,7 @@ static bool op_op(struct riscv_t *rv,
 static bool op_lui(struct riscv_t *rv,
                    uint32_t inst,
                    struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // u-type decode
   const uint32_t rd  = dec_rd(inst);
@@ -335,7 +338,7 @@ static bool op_lui(struct riscv_t *rv,
 static bool op_branch(struct riscv_t *rv,
                       uint32_t inst,
                       struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // the effective current PC
   const uint32_t pc = builder->pc;
@@ -386,7 +389,7 @@ static bool op_branch(struct riscv_t *rv,
 static bool op_jalr(struct riscv_t *rv,
                     uint32_t inst,
                     struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // the effective current PC
   const uint32_t pc = builder->pc;
@@ -417,7 +420,7 @@ static bool op_jalr(struct riscv_t *rv,
 static bool op_jal(struct riscv_t *rv,
                    uint32_t inst,
                    struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // the effective current PC
   const uint32_t pc = builder->pc;
@@ -446,7 +449,7 @@ static bool op_jal(struct riscv_t *rv,
 static bool op_system(struct riscv_t *rv,
                       uint32_t inst,
                       struct ir_builder_t *builder) {
-  struct ir_block_t *z = &builder->ir;
+  struct ir_block_t *z = builder->ir;
 
   // the effective current PC
   const uint32_t pc = builder->pc;
@@ -505,11 +508,11 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
   assert(rv);
 
   struct ir_builder_t builder;
-  ir_init(&builder.ir);
+  builder.ir = ir_init(ir_space, ir_space + sizeof(ir_space));
   builder.pc = rv->PC;
   builder.instructions = 0;
 
-  struct ir_block_t *z = &builder.ir;
+  struct ir_block_t *z = builder.ir;
 
   // translate the basic block
   for (;;) {

@@ -6,68 +6,25 @@
 #include "ir.h"
 
 
-enum {
-  op_imm,
-
-  op_ld_reg,
-  op_st_reg,
-
-  op_st_pc,
-  op_branch,
-
-  op_add,
-  op_sub,
-  op_and,
-  op_or,
-  op_xor,
-  op_shr,
-  op_sar,
-  op_shl,
-  op_mul,
-  op_mulh,
-  op_mulhsu,
-  op_mulhu,
-  op_div,
-  op_divu,
-  op_rem,
-  op_remu,
-
-  op_eq,
-  op_neq,
-  op_lt,
-  op_ge,
-  op_ltu,
-  op_geu,
-
-  op_sb,
-  op_sh,
-  op_sw,
-  op_lb,
-  op_lh,
-  op_lw,
-  op_lbu,
-  op_lhu,
-  op_ecall,
-  op_ebreak
-};
-
 static struct ir_inst_t *ir_alloc(struct ir_block_t *block) {
   assert(block);
   struct ir_inst_t *i = block->inst + (block->head++);
-  assert(block->head < IR_MAX_INST);
+  assert((const void*)(i+1) < block->end);
   memset(i, 0, sizeof(struct ir_inst_t));
   return i;
 }
 
-void ir_init(struct ir_block_t *block) {
-  assert(block);
-  memset(block, 0, sizeof(struct ir_block_t));
+struct ir_block_t *ir_init(void *start, void *end) {
+  memset(start, 0, sizeof(struct ir_block_t));
+  struct ir_block_t *block = (struct ir_block_t *)start;
+  block->end = end;
+  return block;
 }
 
 struct ir_inst_t *ir_imm(struct ir_block_t *block, int32_t imm) {
   assert(block);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_imm;
+  i->op = inst_imm;
   i->imm = imm;
   return i;
 }
@@ -75,7 +32,7 @@ struct ir_inst_t *ir_imm(struct ir_block_t *block, int32_t imm) {
 struct ir_inst_t *ir_ld_reg(struct ir_block_t *block, int32_t offset) {
   assert(block);
   struct ir_inst_t *i = block->inst + (block->head++);
-  i->op = op_ld_reg;
+  i->op = inst_ld_reg;
   i->offset = offset;
   return i;
 }
@@ -83,7 +40,7 @@ struct ir_inst_t *ir_ld_reg(struct ir_block_t *block, int32_t offset) {
 struct ir_inst_t *ir_st_reg(struct ir_block_t *block, int32_t offset, struct ir_inst_t *val) {
   assert(block && val);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_st_reg;
+  i->op = inst_st_reg;
   i->offset = offset;
   i->value = val;
   val->parent = i;
@@ -93,7 +50,7 @@ struct ir_inst_t *ir_st_reg(struct ir_block_t *block, int32_t offset, struct ir_
 struct ir_inst_t *ir_st_pc(struct ir_block_t *block, struct ir_inst_t *val) {
   assert(block && val);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_st_pc;
+  i->op = inst_st_pc;
   i->value = val;
   val->parent = i;
   return i;
@@ -102,7 +59,7 @@ struct ir_inst_t *ir_st_pc(struct ir_block_t *block, struct ir_inst_t *val) {
 struct ir_inst_t *ir_add(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_add;
+  i->op = inst_add;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -113,7 +70,7 @@ struct ir_inst_t *ir_add(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_sub(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sub;
+  i->op = inst_sub;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -124,7 +81,7 @@ struct ir_inst_t *ir_sub(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_and(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_and;
+  i->op = inst_and;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -135,7 +92,7 @@ struct ir_inst_t *ir_and(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_or(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_or;
+  i->op = inst_or;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -146,7 +103,7 @@ struct ir_inst_t *ir_or(struct ir_block_t *block, struct ir_inst_t *lhs, struct 
 struct ir_inst_t *ir_xor(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_xor;
+  i->op = inst_xor;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -157,7 +114,7 @@ struct ir_inst_t *ir_xor(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_shr(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_shr;
+  i->op = inst_shr;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -168,7 +125,7 @@ struct ir_inst_t *ir_shr(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_sar(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sar;
+  i->op = inst_sar;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -179,7 +136,7 @@ struct ir_inst_t *ir_sar(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_shl(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_shl;
+  i->op = inst_shl;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -190,7 +147,7 @@ struct ir_inst_t *ir_shl(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_mul(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_mul;
+  i->op = inst_mul;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -201,7 +158,7 @@ struct ir_inst_t *ir_mul(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_mulh(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_mulh;
+  i->op = inst_mulh;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -212,7 +169,7 @@ struct ir_inst_t *ir_mulh(struct ir_block_t *block, struct ir_inst_t *lhs, struc
 struct ir_inst_t *ir_mulhsu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_mulhsu;
+  i->op = inst_mulhsu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -223,7 +180,7 @@ struct ir_inst_t *ir_mulhsu(struct ir_block_t *block, struct ir_inst_t *lhs, str
 struct ir_inst_t *ir_mulhu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_mulhu;
+  i->op = inst_mulhu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -234,7 +191,7 @@ struct ir_inst_t *ir_mulhu(struct ir_block_t *block, struct ir_inst_t *lhs, stru
 struct ir_inst_t *ir_div(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_div;
+  i->op = inst_div;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -245,7 +202,7 @@ struct ir_inst_t *ir_div(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_divu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_divu;
+  i->op = inst_divu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -256,7 +213,7 @@ struct ir_inst_t *ir_divu(struct ir_block_t *block, struct ir_inst_t *lhs, struc
 struct ir_inst_t *ir_rem(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_rem;
+  i->op = inst_rem;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -267,7 +224,7 @@ struct ir_inst_t *ir_rem(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_remu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_remu;
+  i->op = inst_remu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -278,7 +235,7 @@ struct ir_inst_t *ir_remu(struct ir_block_t *block, struct ir_inst_t *lhs, struc
 struct ir_inst_t *ir_sb(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
   assert(block && addr && val);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sb;
+  i->op = inst_sb;
   i->value = val;
   i->addr = addr;
   addr->parent = i;
@@ -289,7 +246,7 @@ struct ir_inst_t *ir_sb(struct ir_block_t *block, struct ir_inst_t *addr, struct
 struct ir_inst_t *ir_sh(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
   assert(block && addr && val);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sh;
+  i->op = inst_sh;
   i->value = val;
   i->addr = addr;
   addr->parent = i;
@@ -300,7 +257,7 @@ struct ir_inst_t *ir_sh(struct ir_block_t *block, struct ir_inst_t *addr, struct
 struct ir_inst_t *ir_sw(struct ir_block_t *block, struct ir_inst_t *addr, struct ir_inst_t *val) {
   assert(block && addr && val);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_sw;
+  i->op = inst_sw;
   i->value = val;
   i->addr = addr;
   addr->parent = i;
@@ -311,7 +268,7 @@ struct ir_inst_t *ir_sw(struct ir_block_t *block, struct ir_inst_t *addr, struct
 struct ir_inst_t *ir_lb(struct ir_block_t *block, struct ir_inst_t *addr) {
   assert(block && addr);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lb;
+  i->op = inst_lb;
   i->addr = addr;
   addr->parent = i;
   return i;
@@ -320,7 +277,7 @@ struct ir_inst_t *ir_lb(struct ir_block_t *block, struct ir_inst_t *addr) {
 struct ir_inst_t *ir_lh(struct ir_block_t *block, struct ir_inst_t *addr) {
   assert(block && addr);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lh;
+  i->op = inst_lh;
   i->addr = addr;
   addr->parent = i;
   return i;
@@ -329,7 +286,7 @@ struct ir_inst_t *ir_lh(struct ir_block_t *block, struct ir_inst_t *addr) {
 struct ir_inst_t *ir_lw(struct ir_block_t *block, struct ir_inst_t *addr) {
   assert(block && addr);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lw;
+  i->op = inst_lw;
   i->addr = addr;
   addr->parent = i;
   return i;
@@ -338,7 +295,7 @@ struct ir_inst_t *ir_lw(struct ir_block_t *block, struct ir_inst_t *addr) {
 struct ir_inst_t *ir_lbu(struct ir_block_t *block, struct ir_inst_t *addr) {
   assert(block && addr);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lbu;
+  i->op = inst_lbu;
   i->addr = addr;
   addr->parent = i;
   return i;
@@ -347,7 +304,7 @@ struct ir_inst_t *ir_lbu(struct ir_block_t *block, struct ir_inst_t *addr) {
 struct ir_inst_t *ir_lhu(struct ir_block_t *block, struct ir_inst_t *addr) {
   assert(block && addr);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lhu;
+  i->op = inst_lhu;
   i->addr = addr;
   addr->parent = i;
   return i;
@@ -356,21 +313,21 @@ struct ir_inst_t *ir_lhu(struct ir_block_t *block, struct ir_inst_t *addr) {
 struct ir_inst_t *ir_ecall(struct ir_block_t *block) {
   assert(block);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_ecall;
+  i->op = inst_ecall;
   return i;
 }
 
 struct ir_inst_t *ir_ebreak(struct ir_block_t *block) {
   assert(block);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_ebreak;
+  i->op = inst_ebreak;
   return i;
 }
 
 struct ir_inst_t *ir_eq(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_eq;
+  i->op = inst_eq;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -381,7 +338,7 @@ struct ir_inst_t *ir_eq(struct ir_block_t *block, struct ir_inst_t *lhs, struct 
 struct ir_inst_t *ir_neq(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_neq;
+  i->op = inst_neq;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -392,7 +349,7 @@ struct ir_inst_t *ir_neq(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_lt(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_lt;
+  i->op = inst_lt;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -403,7 +360,7 @@ struct ir_inst_t *ir_lt(struct ir_block_t *block, struct ir_inst_t *lhs, struct 
 struct ir_inst_t *ir_ge(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_ge;
+  i->op = inst_ge;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -414,7 +371,7 @@ struct ir_inst_t *ir_ge(struct ir_block_t *block, struct ir_inst_t *lhs, struct 
 struct ir_inst_t *ir_ltu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_ltu;
+  i->op = inst_ltu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -425,7 +382,7 @@ struct ir_inst_t *ir_ltu(struct ir_block_t *block, struct ir_inst_t *lhs, struct
 struct ir_inst_t *ir_geu(struct ir_block_t *block, struct ir_inst_t *lhs, struct ir_inst_t *rhs) {
   assert(block && lhs && rhs);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_geu;
+  i->op = inst_geu;
   i->lhs = lhs;
   i->rhs = rhs;
   lhs->parent = i;
@@ -439,7 +396,7 @@ struct ir_inst_t *ir_branch(struct ir_block_t *block,
                             struct ir_inst_t *not_taken) {
   assert(block && cond && taken && not_taken);
   struct ir_inst_t *i = ir_alloc(block);
-  i->op = op_branch;
+  i->op = inst_branch;
   i->cond = cond;
   i->lhs = taken;
   i->rhs = not_taken;
@@ -451,57 +408,57 @@ struct ir_inst_t *ir_branch(struct ir_block_t *block,
 
 static int32_t eval(struct riscv_t *rv, const struct ir_inst_t *i) {
   switch (i->op) {
-  case op_imm:
+  case inst_imm:
     return i->imm;
-  case op_ld_reg:
+  case inst_ld_reg:
     return (int32_t)(rv->X[i->offset]);
-  case op_st_reg:
+  case inst_st_reg:
     rv->X[i->offset] = eval(rv, i->value);
     break;
-  case op_st_pc:
+  case inst_st_pc:
     rv->PC = eval(rv, i->value);
     break;
-  case op_branch:
+  case inst_branch:
     rv->PC = eval(rv, i->cond) ? eval(rv, i->lhs) : eval(rv, i->rhs);
     break;
-  case op_add:
+  case inst_add:
     return eval(rv, i->lhs) + eval(rv, i->rhs);
-  case op_sub:
+  case inst_sub:
     return eval(rv, i->lhs) - eval(rv, i->rhs);
-  case op_and:
+  case inst_and:
     return eval(rv, i->lhs) & eval(rv, i->rhs);
-  case op_or:
+  case inst_or:
     return eval(rv, i->lhs) | eval(rv, i->rhs);
-  case op_xor:
+  case inst_xor:
     return eval(rv, i->lhs) ^ eval(rv, i->rhs);
-  case op_shr:
+  case inst_shr:
     return (uint32_t)eval(rv, i->lhs) >> (uint32_t)eval(rv, i->rhs);
-  case op_sar:
+  case inst_sar:
     return eval(rv, i->lhs) >> eval(rv, i->rhs);
-  case op_shl:
+  case inst_shl:
     return (uint32_t)eval(rv, i->lhs) << (uint32_t)eval(rv, i->rhs);
 
-  case op_mul:
+  case inst_mul:
     return (int32_t)eval(rv, i->lhs) * (int32_t)eval(rv, i->rhs);
-  case op_mulh:
+  case inst_mulh:
   {
     const int64_t a = (int64_t)eval(rv, i->lhs);
     const int64_t b = (int64_t)eval(rv, i->rhs);
     return ((uint64_t)(a * b)) >> 32;
   }
-  case op_mulhsu:
+  case inst_mulhsu:
   {
     const int64_t a = (int64_t)eval(rv, i->lhs);
     const uint64_t b = (uint32_t)eval(rv, i->rhs);
     return ((uint64_t)(a * b)) >> 32;
   }
-  case op_mulhu:
+  case inst_mulhu:
   {
     const uint64_t a = ((uint32_t)eval(rv, i->lhs));
     const uint64_t b = ((uint32_t)eval(rv, i->rhs));
     return (a * b) >> 32;
   }
-  case op_div:
+  case inst_div:
   {
     const int32_t dividend = eval(rv, i->lhs);
     const int32_t divisor = eval(rv, i->rhs);
@@ -515,13 +472,13 @@ static int32_t eval(struct riscv_t *rv, const struct ir_inst_t *i) {
       return dividend / divisor;
     }
   }
-  case op_divu:
+  case inst_divu:
   {
     const uint32_t dividend = eval(rv, i->lhs);
     const uint32_t divisor = eval(rv, i->rhs);
     return (divisor == 0) ? ~0u : (dividend / divisor);
   }
-  case op_rem:
+  case inst_rem:
   {
     const int32_t dividend = eval(rv, i->lhs);
     const int32_t divisor = eval(rv, i->rhs);
@@ -535,47 +492,47 @@ static int32_t eval(struct riscv_t *rv, const struct ir_inst_t *i) {
       return dividend % divisor;
     }
   }
-  case op_remu:
+  case inst_remu:
   {
     const uint32_t dividend = eval(rv, i->lhs);
     const uint32_t divisor = eval(rv, i->rhs);
     return (divisor == 0) ? dividend : (dividend % divisor);
   }
-  case op_eq:
+  case inst_eq:
     return eval(rv, i->lhs) == eval(rv, i->rhs);
-  case op_neq:
+  case inst_neq:
     return eval(rv, i->lhs) != eval(rv, i->rhs);
-  case op_lt:
+  case inst_lt:
     return eval(rv, i->lhs) < eval(rv, i->rhs);
-  case op_ge:
+  case inst_ge:
     return eval(rv, i->lhs) >= eval(rv, i->rhs);
-  case op_ltu:
+  case inst_ltu:
     return (uint32_t)eval(rv, i->lhs) < (uint32_t)eval(rv, i->rhs);
-  case op_geu:
+  case inst_geu:
     return (uint32_t)eval(rv, i->lhs) >= (uint32_t)eval(rv, i->rhs);
-  case op_sb:
+  case inst_sb:
     rv->io.mem_write_b(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
     break;
-  case op_sh:
+  case inst_sh:
     rv->io.mem_write_s(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
     break;
-  case op_sw:
+  case inst_sw:
     rv->io.mem_write_w(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
     break;
-  case op_lb:
+  case inst_lb:
     return (int8_t)rv->io.mem_read_b(rv, (uint32_t)eval(rv, i->addr));
-  case op_lh:
+  case inst_lh:
     return (int16_t)rv->io.mem_read_s(rv, (uint32_t)eval(rv, i->addr));
-  case op_lw:
+  case inst_lw:
     return (int32_t)rv->io.mem_read_w(rv, (uint32_t)eval(rv, i->addr));
-  case op_lbu:
+  case inst_lbu:
     return (uint8_t)rv->io.mem_read_b(rv, (uint32_t)eval(rv, i->addr));
-  case op_lhu:
+  case inst_lhu:
     return (uint16_t)rv->io.mem_read_s(rv, (uint32_t)eval(rv, i->addr));
-  case op_ecall:
+  case inst_ecall:
     rv->io.on_ecall(rv, 0, 0);
     break;
-  case op_ebreak:
+  case inst_ebreak:
     rv->io.on_ebreak(rv, 0, 0);
     break;
   default:

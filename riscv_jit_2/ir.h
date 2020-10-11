@@ -1,7 +1,51 @@
 #pragma once
 #include <stdint.h>
 
-#define IR_MAX_INST 1024
+
+enum {
+  inst_imm,
+
+  inst_ld_reg,
+  inst_st_reg,
+
+  inst_st_pc,
+  inst_branch,
+
+  inst_add,
+  inst_sub,
+  inst_and,
+  inst_or,
+  inst_xor,
+  inst_shr,
+  inst_sar,
+  inst_shl,
+  inst_mul,
+  inst_mulh,
+  inst_mulhsu,
+  inst_mulhu,
+  inst_div,
+  inst_divu,
+  inst_rem,
+  inst_remu,
+
+  inst_eq,
+  inst_neq,
+  inst_lt,
+  inst_ge,
+  inst_ltu,
+  inst_geu,
+
+  inst_sb,
+  inst_sh,
+  inst_sw,
+  inst_lb,
+  inst_lh,
+  inst_lw,
+  inst_lbu,
+  inst_lhu,
+  inst_ecall,
+  inst_ebreak
+};
 
 struct ir_inst_t {
   int32_t op;
@@ -27,11 +71,13 @@ struct ir_inst_t {
 
 struct ir_block_t {
   int32_t head;
+  const void *end;
   // anything with a NULL parent is a root node to be emitted
-  struct ir_inst_t inst[IR_MAX_INST];
+  struct ir_inst_t inst[];
 };
 
-void ir_init(struct ir_block_t *block);
+// initalize an ir block
+struct ir_block_t *ir_init(void *start, void *end);
 
 // immediate
 struct ir_inst_t *ir_imm    (struct ir_block_t *, int32_t imm);
