@@ -11,19 +11,36 @@
 // csrs
 enum {
   // floating point
-  CSR_FFLAGS    = 0x001,
-  CSR_FRM       = 0x002,
-  CSR_FCSR      = 0x003,
-  // maching status
-  CSR_MSTATUS   = 0x300,
+  CSR_FFLAGS     = 0x001,
+  CSR_FRM        = 0x002,
+  CSR_FCSR       = 0x003,
+  // machine trap status
+  CSR_MSTATUS    = 0x300,
+  CSR_MISA       = 0x301,
+  CSR_MEDELEG    = 0x302,
+  CSR_MIDELEG    = 0x303,
+  CSR_MIE        = 0x304,
+  CSR_MTVEC      = 0x305,
+  CSR_MCOUNTEREN = 0x306,
+  // machine trap handling
+  CSR_MSCRATCH   = 0x340,
+  CSR_MEPC       = 0x341,
+  CSR_MCAUSE     = 0x342,
+  CSR_MTVAL      = 0x343,
+  CSR_MIP        = 0x344,
   // low words
-  CSR_CYCLE     = 0xb00, // 0xC00,
-  CSR_TIME      = 0xC01,
-  CSR_INSTRET   = 0xC02,
+  CSR_CYCLE      = 0xC00,
+  CSR_TIME       = 0xC01,
+  CSR_INSTRET    = 0xC02,
   // high words
-  CSR_CYCLEH    = 0xC80,
-  CSR_TIMEH     = 0xC81,
-  CSR_INSTRETH  = 0xC82
+  CSR_CYCLEH     = 0xC80,
+  CSR_TIMEH      = 0xC81,
+  CSR_INSTRETH   = 0xC82,
+
+  CSR_MVENDORID  = 0xF11,
+  CSR_MARCHID    = 0xF12,
+  CSR_MIMPID     = 0xF13,
+  CSR_MHARTID    = 0xF14,
 };
 
 // instruction decode masks
@@ -87,6 +104,9 @@ struct riscv_jit_t {
 };
 
 struct riscv_t {
+
+  bool halt;
+
   // io interface
   struct riscv_io_t io;
   // integer registers
@@ -94,16 +114,24 @@ struct riscv_t {
   riscv_word_t PC;
   // user provided data
   riscv_user_t userdata;
-  // exception status
-  riscv_exception_t exception;
-  // CSRs
-  uint64_t csr_cycle;
-  uint32_t csr_mstatus;
+
 #if RISCV_VM_SUPPORT_RV32F
   // float registers
   riscv_float_t F[RV_NUM_REGS];
   uint32_t csr_fcsr;
 #endif  // RISCV_VM_SUPPORT_RV32F
+
+  // csr registers
+  uint64_t csr_cycle;
+  uint32_t csr_mstatus;
+  uint32_t csr_mtvec;
+  uint32_t csr_misa;
+  uint32_t csr_mtval;
+  uint32_t csr_mcause;
+  uint32_t csr_mscratch;
+  uint32_t csr_mepc;
+  uint32_t csr_mip;
+  uint32_t csr_mbadaddr;
 
   // jit specific data
   struct riscv_jit_t jit;
@@ -201,3 +229,8 @@ static inline uint32_t sign_extend_b(uint32_t x) {
 
 bool rv_init_jit(struct riscv_t *rv);
 bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target);
+
+void rv_except_inst_misaligned(struct riscv_t *rv, uint32_t old_pc);
+void rv_except_load_misaligned(struct riscv_t *rv, uint32_t addr);
+void rv_except_store_misaligned(struct riscv_t *rv, uint32_t addr);
+void rv_except_illegal_inst(struct riscv_t *rv);

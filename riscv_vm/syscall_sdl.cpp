@@ -15,6 +15,9 @@ static SDL_Surface *g_video;
 
 
 static bool check_sdl(struct riscv_t *rv, uint32_t width, uint32_t height) {
+
+  state_t *s = (struct state_t *)rv_userdata(rv);
+
   // check if video has been setup
   if (!g_video) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -39,11 +42,11 @@ static bool check_sdl(struct riscv_t *rv, uint32_t width, uint32_t height) {
   while (SDL_PollEvent(&event)) {
     switch (event.type) {
     case SDL_QUIT:
-      rv_set_exception(rv, rv_except_halt);
+      rv_halt(rv);
       break;
     case SDL_KEYDOWN:
       if (event.key.keysym.sym == SDLK_ESCAPE) {
-        rv_set_exception(rv, rv_except_halt);
+        rv_halt(rv);
         break;
       }
     }

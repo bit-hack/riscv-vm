@@ -43,13 +43,6 @@ enum {
   rv_reg_t6,
 };
 
-enum {
-  rv_except_none = 0,
-  rv_except_inst_misaligned = 1,
-
-  rv_except_halt = ~0u
-};
-
 struct riscv_t;
 typedef void *riscv_user_t;
 
@@ -71,8 +64,8 @@ typedef void (*riscv_mem_write_s)(struct riscv_t *rv, riscv_word_t addr, riscv_h
 typedef void (*riscv_mem_write_b)(struct riscv_t *rv, riscv_word_t addr, riscv_byte_t data);
 
 // system instruction handlers
-typedef void (*riscv_on_ecall )(struct riscv_t *rv, riscv_word_t addr, uint32_t inst);
-typedef void (*riscv_on_ebreak)(struct riscv_t *rv, riscv_word_t addr, uint32_t inst);
+typedef void (*riscv_on_ecall )(struct riscv_t *rv);
+typedef void (*riscv_on_ebreak)(struct riscv_t *rv);
 
 // riscv emulator io interface
 struct riscv_io_t {
@@ -101,6 +94,7 @@ void rv_reset(struct riscv_t *, riscv_word_t pc);
 
 // step the riscv emulator
 void rv_step(struct riscv_t *, int32_t cycles);
+void rv_step_nojit(struct riscv_t *rv, int32_t cycles);
 
 // get riscv user data bound to an emulator
 riscv_user_t rv_userdata(struct riscv_t *);
@@ -117,14 +111,14 @@ void rv_set_reg(struct riscv_t *, uint32_t reg, riscv_word_t in);
 // get a register of the riscv emulator
 riscv_word_t rv_get_reg(struct riscv_t *, uint32_t reg);
 
-// return any exception asserted
-riscv_exception_t rv_get_exception(struct riscv_t *);
-
-// raise a processor exception
-void rv_set_exception(struct riscv_t *, uint32_t except);
-
 // return the cycle counter
 uint64_t rv_get_csr_cycles(struct riscv_t *);
+
+// halt the core
+void rv_halt(struct riscv_t *);
+
+// return the halt state
+bool rv_has_halted(struct riscv_t *);
 
 #ifdef __cplusplus
 };  // ifdef __cplusplus

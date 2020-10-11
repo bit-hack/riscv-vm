@@ -20,6 +20,8 @@ const char *g_arg_program = "a.out";
 bool g_arg_show_mips = false;
 // run in fullscreen
 bool g_fullscreen = false;
+// disable jit code generation
+bool g_no_jit = false;
 
 // main syscall handler
 void syscall_handler(struct riscv_t *);
@@ -64,37 +66,34 @@ void imp_mem_write_b(struct riscv_t *rv, riscv_word_t addr, riscv_byte_t  data) 
   s->mem.write(addr, (uint8_t*)&data, sizeof(data));
 }
 
-void imp_on_ecall(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
+void imp_on_ecall(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // in compliance testing it seems any `ecall` should abort
   if (g_arg_compliance) {
-    rv_set_exception(rv, rv_except_halt);
+    rv_halt(rv);
     return;
   }
   // pass to the syscall handler
   syscall_handler(rv);
 }
 
-void imp_on_ebreak(struct riscv_t *rv, riscv_word_t addr, uint32_t inst) {
+void imp_on_ebreak(struct riscv_t *rv) {
   state_t *s = (state_t*)rv_userdata(rv);
-  rv_set_exception(rv, rv_except_halt);
+  rv_halt(rv);
 }
 
 // run the core - printing out an instruction trace
 void run_and_trace(riscv_t *rv, state_t *state, elf_t &elf) {
   static const uint32_t cycles_per_step = 1;
   // run until we see the flag that we are done
-  for (; !state->done;) {
+  for (; !rv_has_halted(rv);) {
     // trace execution
     uint32_t pc = rv_get_pc(rv);
     const char *sym = elf.find_symbol(pc);
     printf("%08x  %s\n", pc, (sym ? sym : ""));
     // step instructions
-    rv_step(rv, cycles_per_step);
-    if (rv_get_exception(rv) != rv_except_none) {
-      break;
-    }
+    rv_step_nojit(rv, cycles_per_step);
   }
 }
 
@@ -106,7 +105,7 @@ void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
   uint64_t cycles_base = rv_get_csr_cycles(rv);
 
   // run until we see the flag that we are done
-  for (; !state->done;) {
+  for (; !rv_has_halted(rv);) {
     // track instruction MIPS
     if ((clock() - start) >= CLOCKS_PER_SEC) {
       start += CLOCKS_PER_SEC;
@@ -115,9 +114,11 @@ void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
       cycles_base = cycles;
     }
     // step instructions
-    rv_step(rv, cycles_per_step);
-    if (rv_get_exception(rv) != rv_except_none) {
-      break;
+    if (g_no_jit) {
+      rv_step_nojit(rv, cycles_per_step);
+    }
+    else {
+      rv_step(rv, cycles_per_step);
     }
   }
 }
@@ -126,11 +127,13 @@ void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
 void run(riscv_t *rv, state_t *state, elf_t &elf) {
   static const uint32_t cycles_per_step = 100;
   // run until we see the flag that we are done
-  for (; !state->done;) {
+  for (; !rv_has_halted(rv);) {
     // step instructions
-    rv_step(rv, cycles_per_step);
-    if (rv_get_exception(rv) != rv_except_none) {
-      break;
+    if (g_no_jit) {
+      rv_step_nojit(rv, cycles_per_step);
+    }
+    else {
+      rv_step(rv, cycles_per_step);
     }
   }
 }

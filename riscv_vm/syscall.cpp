@@ -113,7 +113,7 @@ void syscall_write(struct riscv_t *rv) {
 void syscall_exit(struct riscv_t *rv) {
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
-  s->done = true;
+  rv_halt(rv);
   // _exit(code);
   riscv_word_t code = rv_get_reg(rv, rv_reg_a0);
   fprintf(stdout, "inferior exit code %d\n", (int)code);
@@ -310,7 +310,7 @@ void syscall_handler(struct riscv_t *rv) {
 #endif
   default:
     fprintf(stderr, "unknown syscall %d\n", int(syscall));
-    s->done = true;
+    rv_halt(rv);
     break;
   }
 }

@@ -105,6 +105,13 @@ static void get_reg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, uin
   }
 }
 
+static void get_freg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, uint32_t src) {
+
+  struct cg_state_t *cg = &block->cg;
+  const int32_t offset = rv_offset(rv, F[src]);
+  cg_mov_r32_r64disp(cg, dst, cg_rsi, offset);
+}
+
 static void set_reg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_r32_t src) {
 
   struct cg_state_t *cg = &block->cg;
@@ -113,6 +120,14 @@ static void set_reg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_
     const int32_t offset = rv_offset(rv, X[dst]);
     cg_mov_r64disp_r32(cg, cg_rsi, offset, src);
   }
+}
+
+static void set_freg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_r32_t src) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const int32_t offset = rv_offset(rv, F[dst]);
+  cg_mov_r64disp_r32(cg, cg_rsi, offset, src);
 }
 
 static void gen_prologue(struct block_t *block, struct riscv_t *rv) {
@@ -722,13 +737,6 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     set_reg(block, rv, rd, cg_eax);
   }
 
-#if RISCV_SUPPORT_MACHINE
-  // check for exception
-  // if (rv->PC & 0x3) {
-  //   raise_exception(rv, rv_except_inst_misaligned);
-  // }
-#endif
-
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -758,13 +766,6 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     set_reg(block, rv, rd, cg_eax);
   }
 
-#if RISCV_SUPPORT_MACHINE
-  // check alignment of PC
-  // if (rv->PC & 0x3) {
-  //   raise_exception(rv, rv_except_inst_misaligned);
-  // }
-#endif
-
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -789,12 +790,12 @@ static bool op_system(struct riscv_t *rv,
 
   // arg1 - rv
   cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
-  // arg2 - pc
-  cg_mov_r32_i32(cg, cg_edx, pc);
-  // arg3 - instruction
-  cg_mov_r64_i32(cg, cg_r8, inst);
 
   int32_t offset;
+
+  // set the next PC address
+  cg_mov_r32_i32(cg, cg_eax, pc + 4);
+  set_pc(block, rv, cg_eax);
 
   // dispatch by func3 field
   switch (funct3) {
@@ -813,11 +814,6 @@ static bool op_system(struct riscv_t *rv,
       assert(!"unreachable");
     }
     break;
-  case 1:
-  case 2:
-  case 3:
-    // TODO: CSRRW, CSRRS, CSRRC
-    break;
   default:
     // cant translate this instruction - terminate block
     cg_mov_r32_i32(cg, cg_eax, pc);
@@ -829,9 +825,73 @@ static bool op_system(struct riscv_t *rv,
   block->instructions += 1;
   block->pc_end += 4;
 
-  // XXX: assume we wont branch for now but will need to be updated later
+  // treat this as a branch point
+  return false;
+}
+
+#if RISCV_VM_SUPPORT_RV32F
+static bool op_load_fp(struct riscv_t *rv,
+                       uint32_t inst,
+                       struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd  = dec_rd(inst);
+  const uint32_t rs1 = dec_rs1(inst);
+  const int32_t  imm = dec_itype_imm(inst);
+
+  // arg1 - rv
+  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  // arg2 - address
+  get_reg(block, rv, cg_edx, rs1);
+  cg_add_r32_i32(cg, cg_edx, imm);
+
+  const int32_t offset = rv_offset(rv, io.mem_read_w);
+  cg_call_r64disp(cg, cg_rsi, offset);
+
+  set_freg(block, rv, rd, cg_eax);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+
+  // cant branch
   return true;
 }
+
+static bool op_store_fp(struct riscv_t *rv,
+                        uint32_t inst,
+                        struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const int32_t  imm = dec_stype_imm(inst);
+
+  // arg1 - rv
+  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  // arg2 - address
+  get_reg(block, rv, cg_edx, rs1);
+  cg_add_r32_i32(cg, cg_edx, imm);
+  // arg3 - value
+  get_freg(block, rv, cg_eax, rs2);
+  cg_mov_r64_r64(cg, cg_r8, cg_rax);
+
+  const int32_t offset = rv_offset(rv, io.mem_write_w);
+  cg_call_r64disp(cg, cg_rsi, offset);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+
+  // cant branch
+  return true;
+}
+#else
+#define op_load_fp NULL
+#define op_store_fp NULL
+#endif
 
 // opcode handler type
 typedef bool(*opcode_t)(struct riscv_t *rv,
@@ -841,8 +901,8 @@ typedef bool(*opcode_t)(struct riscv_t *rv,
 // opcode dispatch table
 static const opcode_t opcodes[] = {
 //  000        001          010       011          100        101       110   111
-    op_load,   NULL,        NULL,     NULL,        op_op_imm, op_auipc, NULL, NULL, // 00
-    op_store,  NULL,        NULL,     NULL,        op_op,     op_lui,   NULL, NULL, // 01
+    op_load,   op_load_fp,  NULL,     NULL,        op_op_imm, op_auipc, NULL, NULL, // 00
+    op_store,  op_store_fp, NULL,     NULL,        op_op,     op_lui,   NULL, NULL, // 01
     NULL,      NULL,        NULL,     NULL,        NULL,      NULL,     NULL, NULL, // 10
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
@@ -913,7 +973,7 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
   assert(block);
 
   // loop until we hit out cycle target
-  while (rv->csr_cycle < cycles_target) {
+  while (rv->csr_cycle < cycles_target && !rv->halt) {
 
     // try to predict the next block
     // note: block predition gives us ~100 MIPS boost.
@@ -933,6 +993,7 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
     // call the translated block
     typedef void(*call_block_t)(struct riscv_t *);
     call_block_t c = (call_block_t)block->code;
+    // printf("// %08x\n", rv->PC);
     c(rv);
 
     // increment the cycles csr

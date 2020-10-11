@@ -20,6 +20,20 @@ static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
     return (uint32_t*)(&rv->csr_cycle) + 1;
   case CSR_MSTATUS:
     return (uint32_t*)(&rv->csr_mstatus);
+  case CSR_MTVEC:
+    return (uint32_t*)(&rv->csr_mtvec);
+  case CSR_MISA:
+    return (uint32_t*)(&rv->csr_misa);
+  case CSR_MSCRATCH:
+    return (uint32_t*)(&rv->csr_mscratch);
+  case CSR_MEPC:
+    return (uint32_t*)(&rv->csr_mepc);
+  case CSR_MCAUSE:
+    return (uint32_t*)(&rv->csr_mcause);
+  case CSR_MTVAL:
+    return (uint32_t*)(&rv->csr_mtval);
+  case CSR_MIP:
+    return (uint32_t*)(&rv->csr_mip);
 #if RISCV_VM_SUPPORT_RV32F
   case CSR_FCSR:
     return (uint32_t*)(&rv->csr_fcsr);
@@ -30,15 +44,7 @@ static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
 }
 
 static bool csr_is_writable(uint32_t csr) {
-  switch (csr) {
-  case CSR_MSTATUS:
-    return true;
-  case CSR_CYCLE:
-  case CSR_CYCLEH:
-  case CSR_FCSR:
-  default:
-    return false;
-  }
+  return csr < 0xc00;
 }
 
 // perform csrrw
@@ -80,11 +86,6 @@ static uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
   return out;
 }
 
-// raise an exception in the processor
-static inline void raise_exception(struct riscv_t *rv, uint32_t type) {
-  rv->exception = type;
-}
-
 static bool op_load(struct riscv_t *rv, uint32_t inst) {
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -99,20 +100,32 @@ static bool op_load(struct riscv_t *rv, uint32_t inst) {
     rv->X[rd] = sign_extend_b(rv->io.mem_read_b(rv, addr));
     break;
   case 1: // LH
+    if (addr & 1) {
+      rv_except_load_misaligned(rv, addr);
+      return false;
+    }
     rv->X[rd] = sign_extend_h(rv->io.mem_read_s(rv, addr));
     break;
   case 2: // LW
+    if (addr & 3) {
+      rv_except_load_misaligned(rv, addr);
+      return false;
+    }
     rv->X[rd] = rv->io.mem_read_w(rv, addr);
     break;
   case 4: // LBU
     rv->X[rd] = rv->io.mem_read_b(rv, addr);
     break;
   case 5: // LHU
+    if (addr & 1) {
+      rv_except_load_misaligned(rv, addr);
+      return false;
+    }
     rv->X[rd] = rv->io.mem_read_s(rv, addr);
     break;
   default:
-    assert(!"unreachable");
-    break;
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -173,8 +186,8 @@ static bool op_op_imm(struct riscv_t *rv, uint32_t inst) {
     rv->X[rd] = rv->X[rs1] & imm;
     break;
   default:
-    assert(!"unreachable");
-    break;
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -215,14 +228,22 @@ static bool op_store(struct riscv_t *rv, uint32_t inst) {
     rv->io.mem_write_b(rv, addr, data);
     break;
   case 1: // SH
+    if (addr & 1) {
+      rv_except_store_misaligned(rv, addr);
+      return false;
+    }
     rv->io.mem_write_s(rv, addr, data);
     break;
   case 2: // SW
+    if (addr & 3) {
+      rv_except_store_misaligned(rv, addr);
+      return false;
+    }
     rv->io.mem_write_w(rv, addr, data);
     break;
   default:
-    assert(!"unreachable");
-    break;
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -265,8 +286,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = rv->X[rs1] & rv->X[rs2];
       break;
     default:
-      assert(!"unreachable");
-      break;
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
 #if RISCV_VM_SUPPORT_RV32M
@@ -348,8 +369,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst) {
       }
       break;
     default:
-      assert(!"unreachable");
-      break;
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
 #endif  // RISCV_VM_SUPPORT_RV32M
@@ -362,13 +383,13 @@ static bool op_op(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = ((int32_t)rv->X[rs1]) >> (rv->X[rs2] & 0x1f);
       break;
     default:
-      assert(!"unreachable");
-      break;
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   default:
-    assert(!"unreachable");
-    break;
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -394,6 +415,7 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst) {
 }
 
 static bool op_branch(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t pc = rv->PC; 
   // b-type decode
   const uint32_t func3 = dec_funct3(inst);
   const int32_t  imm   = dec_btype_imm(inst);
@@ -422,13 +444,14 @@ static bool op_branch(struct riscv_t *rv, uint32_t inst) {
     taken = (rv->X[rs1] >= rv->X[rs2]);
     break;
   default:
-    assert(!"unreachable");
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // perform branch action
   if (taken) {
     rv->PC += imm;
     if (rv->PC & 0x3) {
-      raise_exception(rv, rv_except_inst_misaligned);
+      rv_except_inst_misaligned(rv, pc);
     }
   }
   else {
@@ -440,6 +463,7 @@ static bool op_branch(struct riscv_t *rv, uint32_t inst) {
 }
 
 static bool op_jalr(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t pc = rv->PC;
   // i-type decode
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
@@ -454,13 +478,15 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst) {
   }
   // check for exception
   if (rv->PC & 0x3) {
-    raise_exception(rv, rv_except_inst_misaligned);
+    rv_except_inst_misaligned(rv, pc);
+    return false;
   }
   // can branch
   return false;
 }
 
 static bool op_jal(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t pc = rv->PC;
   // j-type decode
   const uint32_t rd  = dec_rd(inst);
   const int32_t rel = dec_jtype_imm(inst);
@@ -473,7 +499,8 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst) {
   }
   // check alignment of PC
   if (rv->PC & 0x3) {
-    raise_exception(rv, rv_except_inst_misaligned);
+    rv_except_inst_misaligned(rv, pc);
+    return false;
   }
   // can branch
   return false;
@@ -486,39 +513,64 @@ static bool op_system(struct riscv_t *rv, uint32_t inst) {
   const uint32_t funct3 = dec_funct3(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rd     = dec_rd(inst);
+
+  uint32_t tmp;
+
   // dispatch by func3 field
   switch (funct3) {
   case 0:
     // dispatch from imm field
     switch (imm) {
     case 0: // ECALL
-      rv->io.on_ecall(rv, rv->PC, inst);
+      rv->io.on_ecall(rv);
       break;
     case 1: // EBREAK
-      rv->io.on_ebreak(rv, rv->PC, inst);
+      rv->io.on_ebreak(rv);
       break;
+    case 0x002: // URET
+    case 0x102: // SRET
+    case 0x202: // HRET
+    case 0x105: // WFI
+      rv_except_illegal_inst(rv);
+      return false;
+    case 0x302: // MRET
+      rv->PC = rv->csr_mepc;
+      // this is a branch
+      return false;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
 #if RISCV_VM_SUPPORT_Zicsr
   case 1: // CSRRW    (Atomic Read/Write CSR)
-    rv->X[rd] = csr_csrrw(rv, csr, rs1);
+    tmp = csr_csrrw(rv, csr, rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
     break;
   case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
-    rv->X[rd] = csr_csrrs(rv, csr, rs1);
+    tmp = csr_csrrs(rv, csr, (rs1 == rv_reg_zero) ? 0u : rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
     break;
   case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
-    rv->X[rd] = csr_csrrc(rv, csr, rs1);
+    tmp = csr_csrrc(rv, csr, (rs1 == rv_reg_zero) ? ~0u : rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
     break;
   case 5: // CSRRWI
+    tmp = csr_csrrc(rv, csr, rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
   case 6: // CSRRSI
+    tmp = csr_csrrs(rv, csr, rs1);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
   case 7: // CSRRCI
-    // TODO
+    tmp = csr_csrrc(rv, csr, rs1);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
     break;
 #endif  // RISCV_VM_SUPPORT_Zicsr
   default:
-    assert(!"unreachable");
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -622,7 +674,8 @@ static bool op_amo(struct riscv_t *rv, uint32_t inst) {
       break;
     }
   default:
-    assert(!"unreachable");
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
@@ -677,7 +730,7 @@ static uint32_t calc_fclass(uint32_t f) {
   return out;
 }
 
-bool op_load_fp(struct riscv_t *rv, uint32_t inst) {
+static bool op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
   const int32_t imm = dec_itype_imm(inst);
@@ -691,7 +744,7 @@ bool op_load_fp(struct riscv_t *rv, uint32_t inst) {
   return true;
 }
 
-bool op_store_fp(struct riscv_t *rv, uint32_t inst) {
+static bool op_store_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1 = dec_rs1(inst);
   const uint32_t rs2 = dec_rs2(inst);
   const int32_t imm = dec_stype_imm(inst);
@@ -706,7 +759,7 @@ bool op_store_fp(struct riscv_t *rv, uint32_t inst) {
   return true;
 }
 
-bool op_fp(struct riscv_t *rv, uint32_t inst) {
+static bool op_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd     = dec_rd(inst);
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
@@ -745,7 +798,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
       res = f1 ^ (f2 & FMASK_SIGN);
       break;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     memcpy(rv->F + rd, &res, 4);
     break;
@@ -759,7 +813,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
       rv->F[rd] = fmaxf(rv->F[rs1], rv->F[rs2]);
       break;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   case 0b1100000:
@@ -771,7 +826,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = (uint32_t)rv->F[rs1];
       break;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   case 0b1110000:
@@ -788,7 +844,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
         break;
       }
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   case 0b1010000:
@@ -803,7 +860,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
       rv->X[rd] = (rv->F[rs1] <= rv->F[rs2]) ? 1 : 0;
       break;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   case 0b1101000:
@@ -815,7 +873,8 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
       rv->F[rd] = (float)(uint32_t)rv->X[rs1];
       break;
     default:
-      assert(!"unreachable");
+      rv_except_illegal_inst(rv);
+      return false;
     }
     break;
   case 0b1111000:  // FMV.W.X
@@ -823,14 +882,15 @@ bool op_fp(struct riscv_t *rv, uint32_t inst) {
     memcpy(rv->F + rd, rv->X + rs1, 4);
     break;
   default:
-    assert(!"unreachable");
+    rv_except_illegal_inst(rv);
+    return false;
   }
   // step over instruction
   rv->PC += 4;
   return true;
 }
 
-bool op_madd(struct riscv_t *rv, uint32_t inst) {
+static bool op_madd(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -844,7 +904,7 @@ bool op_madd(struct riscv_t *rv, uint32_t inst) {
   return true;
 }
 
-bool op_msub(struct riscv_t *rv, uint32_t inst) {
+static bool op_msub(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -858,7 +918,7 @@ bool op_msub(struct riscv_t *rv, uint32_t inst) {
   return true;
 }
 
-bool op_nmsub(struct riscv_t *rv, uint32_t inst) {
+static bool op_nmsub(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -872,7 +932,7 @@ bool op_nmsub(struct riscv_t *rv, uint32_t inst) {
   return true;
 }
 
-bool op_nmadd(struct riscv_t *rv, uint32_t inst) {
+static bool op_nmadd(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rm  = dec_funct3(inst);      // todo
   const uint32_t rs1 = dec_rs1(inst);
@@ -926,44 +986,13 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   return rv;
 }
 
-#if RISCV_VM_X64_JIT
-void rv_step(struct riscv_t *rv, int32_t cycles) {
+void rv_step_nojit(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
 
   const uint64_t cycles_start = rv->csr_cycle;
   const uint64_t cycles_target = rv->csr_cycle + cycles;
 
-  while (rv->csr_cycle < cycles_target && !rv->exception) {
-
-    // ask the jit engine to execute
-    if (rv_step_jit(rv, cycles_target)) {
-      continue;
-    }
-
-    // emulate until we hit a branch
-    while (rv->csr_cycle < cycles_target && !rv->exception) {
-      // fetch the next instruction
-      const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
-      const uint32_t index = (inst & INST_6_2) >> 2;
-      // dispatch this opcode
-      const opcode_t op = opcodes[index];
-      assert(op);
-      if (!op(rv, inst)) {
-        break;
-      }
-      // increment the cycles csr
-      rv->csr_cycle++;
-    }
-  }
-}
-#else
-void rv_step(struct riscv_t *rv, int32_t cycles) {
-  assert(rv);
-
-  const uint64_t cycles_start = rv->csr_cycle;
-  const uint64_t cycles_target = rv->csr_cycle + cycles;
-
-  while (rv->csr_cycle < cycles_target && !rv->exception) {
+  while (rv->csr_cycle < cycles_target && !rv->halt) {
 
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
@@ -977,6 +1006,45 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
     // increment the cycles csr
     rv->csr_cycle++;
   }
+}
+
+#if RISCV_VM_X64_JIT
+void rv_step(struct riscv_t *rv, int32_t cycles) {
+  assert(rv);
+
+  const uint64_t cycles_start = rv->csr_cycle;
+  const uint64_t cycles_target = rv->csr_cycle + cycles;
+
+  while (rv->csr_cycle < cycles_target && !rv->halt) {
+
+    // ask the jit engine to execute
+    if (rv_step_jit(rv, cycles_target)) {
+      continue;
+    }
+
+    // emulate until we hit a branch
+    while (rv->csr_cycle < cycles_target && !rv->halt) {
+      // fetch the next instruction
+      const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
+      const uint32_t index = (inst & INST_6_2) >> 2;
+      // dispatch this opcode
+      const opcode_t op = opcodes[index];
+      if (!op) {
+        rv_except_illegal_inst(rv);
+        return;
+      }
+      assert(op);
+      if (!op(rv, inst)) {
+        break;
+      }
+      // increment the cycles csr
+      rv->csr_cycle++;
+    }
+  }
+}
+#else
+void rv_step(struct riscv_t *rv, int32_t cycles) {
+  rv_step_nojit(rv, cycles);
 }
 #endif
 
@@ -993,8 +1061,6 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   rv->PC = pc;
   // set the default stack pointer
   rv->X[rv_reg_sp] = DEFAULT_STACK_ADDR;
-  // reset exception state
-  rv->exception = rv_except_none;
   // reset the csrs
   rv->csr_cycle = 0;
   rv->csr_mstatus = 0;
@@ -1003,4 +1069,13 @@ void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
   memset(rv->F, 0, sizeof(float) * RV_NUM_REGS);
   rv->csr_fcsr = 0;
 #endif
+  rv->halt = false;
+}
+
+void rv_halt(struct riscv_t *rv) {
+  rv->halt = true;
+}
+
+bool rv_has_halted(struct riscv_t *rv) {
+  return rv->halt;
 }
