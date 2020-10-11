@@ -65,17 +65,32 @@ endif()
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
-set(LIB_SRC
-    "riscv_core/riscv.c"
-    "riscv_core/riscv.h"
-    "riscv_core/riscv_conf.h"
-    "riscv_core/riscv_private.h"
-    "riscv_core/riscv_common.c"
-    "riscv_core/riscv_jit.c"
-    "riscv_core/ir.h"
-    "riscv_core/ir.c"
+set(RISCV_EMU_SRC
+    "riscv_emu/riscv.c"
+    "riscv_emu/riscv.h"
+    "riscv_emu/riscv_conf.h"
+    "riscv_emu/riscv_private.h"
+    "riscv_emu/riscv_common.c"
     )
-add_library(riscv_core ${LIB_SRC})
+add_library(riscv_emu ${RISCV_EMU_SRC})
+
+set(RISCV_NOJIT_SRC
+    "riscv_nojit/riscv_nojit.c"
+    )
+add_library(riscv_nojit ${RISCV_NOJIT_SRC})
+
+set(RISCV_JIT_1_SRC
+    "riscv_jit_1/riscv_jit_1.c"
+    )
+add_library(riscv_jit_1 ${RISCV_JIT_1_SRC})
+
+set(RISCV_JIT_2_SRC
+    "riscv_jit_2/riscv_jit_2.h"
+    "riscv_jit_2/riscv_jit_2.c"
+    "riscv_jit_2/ir.h"
+    "riscv_jit_2/ir.c"
+    )
+add_library(riscv_jit_2 ${RISCV_JIT_2_SRC})
 
 set(TINYCG_SRC
     "tinycg/tinycg.c"
@@ -95,8 +110,16 @@ set(DRV_SRC
     )
 
 add_executable(riscv_vm ${DRV_SRC})
-target_link_libraries(riscv_vm riscv_core tinycg)
+target_link_libraries(riscv_vm riscv_emu riscv_nojit)
+
+add_executable(riscv_vm_j1 ${DRV_SRC})
+target_link_libraries(riscv_vm_j1 riscv_emu tinycg riscv_jit_1)
+
+add_executable(riscv_vm_j2 ${DRV_SRC})
+target_link_libraries(riscv_vm_j2 riscv_emu riscv_jit_2)
 
 if (${RVVM_USE_SDL})
     target_link_libraries(riscv_vm ${SDL_LIBRARY})
+    target_link_libraries(riscv_vm_j1 ${SDL_LIBRARY})
+    target_link_libraries(riscv_vm_j2 ${SDL_LIBRARY})
 endif()

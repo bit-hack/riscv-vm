@@ -6,7 +6,7 @@
 #include "file.h"
 #include "memory.h"
 
-#include "../riscv_core/riscv.h"
+#include "../riscv_emu/riscv.h"
 #include "state.h"
 
 

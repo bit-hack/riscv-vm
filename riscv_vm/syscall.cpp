@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <ctime>
 
-#include "../riscv_core/riscv.h"
+#include "../riscv_emu/riscv.h"
 #include "state.h"
 
 enum {

@@ -5,7 +5,7 @@
 #include "riscv.h"
 
 #include "../tinycg/tinycg.h"
-#include "ir.h"
+//#include "ir.h"
 
 #define RV_NUM_REGS 32
 
@@ -78,7 +78,6 @@ struct block_t {
 
 struct block_builder_t {
   struct block_t *block;
-  struct ir_block_t ir;
   // TODO: move cg in here?
 };
 
@@ -111,7 +110,6 @@ struct riscv_t {
   riscv_float_t F[RV_NUM_REGS];
   uint32_t csr_fcsr;
 #endif  // RISCV_VM_SUPPORT_RV32F
-
   // jit specific data
   struct riscv_jit_t jit;
 };

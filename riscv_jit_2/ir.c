@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include "../riscv_emu/riscv_private.h"
+
 #include "ir.h"
 
 
@@ -375,6 +377,92 @@ struct ir_inst_t *ir_branch(struct ir_block_t *block,
   return i;
 }
 
-void ir_eval(struct ir_block_t *block, struct rv_state_t *rv) {
-  // TODO
+static int32_t eval(struct riscv_t *rv, const struct ir_inst_t *i) {
+  switch (i->op) {
+  case op_imm:
+    return i->imm;
+  case op_ld_reg:
+    return (int32_t)(rv->X[i->offset]);
+  case op_st_reg:
+    rv->X[i->offset] = eval(rv, i->value);
+    break;
+  case op_st_pc:
+    rv->PC = eval(rv, i->value);
+    break;
+  case op_branch:
+    rv->PC = eval(rv, i->cond) ? eval(rv, i->lhs) : eval(rv, i->rhs);
+    break;
+  case op_add:
+    return eval(rv, i->lhs) + eval(rv, i->rhs);
+  case op_sub:
+    return eval(rv, i->lhs) - eval(rv, i->rhs);
+  case op_and:
+    return eval(rv, i->lhs) & eval(rv, i->rhs);
+  case op_or:
+    return eval(rv, i->lhs) | eval(rv, i->rhs);
+  case op_xor:
+    return eval(rv, i->lhs) ^ eval(rv, i->rhs);
+  case op_shr:
+    return (uint32_t)eval(rv, i->lhs) >> (uint32_t)eval(rv, i->rhs);
+  case op_sar:
+    return eval(rv, i->lhs) >> eval(rv, i->rhs);
+  case op_shl:
+    return (uint32_t)eval(rv, i->lhs) << (uint32_t)eval(rv, i->rhs);
+  case op_mul:
+    return (uint32_t)eval(rv, i->lhs) * (uint32_t)eval(rv, i->rhs);
+  case op_imul:
+    return eval(rv, i->lhs) * eval(rv, i->rhs);
+  case op_eq:
+    return eval(rv, i->lhs) == eval(rv, i->rhs);
+  case op_neq:
+    return eval(rv, i->lhs) != eval(rv, i->rhs);
+  case op_lt:
+    return eval(rv, i->lhs) < eval(rv, i->rhs);
+  case op_ge:
+    return eval(rv, i->lhs) >= eval(rv, i->rhs);
+  case op_ltu:
+    return (uint32_t)eval(rv, i->lhs) < (uint32_t)eval(rv, i->rhs);
+  case op_geu:
+    return (uint32_t)eval(rv, i->lhs) >= (uint32_t)eval(rv, i->rhs);
+  case op_sb:
+    rv->io.mem_write_b(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
+    break;
+  case op_sh:
+    rv->io.mem_write_s(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
+    break;
+  case op_sw:
+    rv->io.mem_write_w(rv, (uint32_t)eval(rv, i->addr), eval(rv, i->value));
+    break;
+  case op_lb:
+    return (int8_t)rv->io.mem_read_b(rv, (uint32_t)eval(rv, i->addr));
+  case op_lh:
+    return (int16_t)rv->io.mem_read_s(rv, (uint32_t)eval(rv, i->addr));
+  case op_lw:
+    return (int32_t)rv->io.mem_read_w(rv, (uint32_t)eval(rv, i->addr));
+  case op_lbu:
+    return (uint8_t)rv->io.mem_read_b(rv, (uint32_t)eval(rv, i->addr));
+  case op_lhu:
+    return (uint16_t)rv->io.mem_read_s(rv, (uint32_t)eval(rv, i->addr));
+  case op_ecall:
+    rv->io.on_ecall(rv, 0, 0);
+    break;
+  case op_ebreak:
+    rv->io.on_ebreak(rv, 0, 0);
+    break;
+  default:
+    assert(!"unreachable");
+  }
+  // this should be a root instruction
+  assert(i->parent == NULL);
+  return 0;
+}
+
+void ir_eval(struct ir_block_t *block, struct riscv_t *rv) {
+  for (int i = 0; i < block->head; ++i) {
+    const struct ir_inst_t *inst = block->inst + i;
+    if (inst->parent != NULL) {
+      continue;
+    }
+    eval(rv, inst);
+  }
 }

@@ -6,7 +6,7 @@
 
 #include <SDL.h>
 
-#include "../riscv_core/riscv.h"
+#include "../riscv_emu/riscv.h"
 #include "state.h"
 
 extern bool g_fullscreen;

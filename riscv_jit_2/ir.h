@@ -77,4 +77,4 @@ struct ir_inst_t *ir_ecall  (struct ir_block_t *);
 struct ir_inst_t *ir_ebreak (struct ir_block_t *);
 
 
-void ir_eval(struct ir_block_t *, struct rv_state_t *);
+void ir_eval(struct ir_block_t *, struct riscv_t *);

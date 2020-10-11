@@ -2,7 +2,7 @@
 #include <map>
 #include <stdio.h>
 
-#include "../riscv_core/riscv.h"
+#include "../riscv_emu/riscv.h"
 
 #include "memory.h"
 

@@ -5,7 +5,7 @@
 #include "elf.h"
 #include "memory.h"
 
-#include "../riscv_core/riscv.h"
+#include "../riscv_emu/riscv.h"
 
 elf_t::elf_t()
   : hdr(nullptr)

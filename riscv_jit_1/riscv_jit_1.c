@@ -13,8 +13,8 @@
 #include <sys/mman.h>
 #endif
 
-#include "riscv.h"
-#include "riscv_private.h"
+#include "../riscv_emu/riscv.h"
+#include "../riscv_emu/riscv_private.h"
 
 // calling convention
 //
@@ -208,7 +208,6 @@ static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
 static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *builder) {
   struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
-  struct ir_block_t *z = &builder->ir;
 
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -232,41 +231,27 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *b
 
   int32_t offset;
 
-  // generate load address
-  struct ir_inst_t *ir_addr = ir_add(z, ir_ld_reg(z, rs1), ir_imm(z, imm));
-  struct ir_inst_t *ir_load = NULL;
-
   // dispatch by read size
   switch (funct3) {
   case 0: // LB
-    ir_load = ir_lb(z, ir_addr);
-
     offset = rv_offset(rv, io.mem_read_b);
     cg_call_r64disp(cg, cg_rsi, offset);
     cg_movsx_r32_r8(cg, cg_eax, cg_al);
     break;
   case 1: // LH
-    ir_load = ir_lh(z, ir_addr);
-
     offset = rv_offset(rv, io.mem_read_s);
     cg_call_r64disp(cg, cg_rsi, offset);
     cg_movsx_r32_r16(cg, cg_eax, cg_ax);
     break;
   case 2: // LW
-    ir_load = ir_lw(z, ir_addr);
-
     offset = rv_offset(rv, io.mem_read_w);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 4: // LBU
-    ir_load = ir_lbu(z, ir_addr);
-
     offset = rv_offset(rv, io.mem_read_b);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 5: // LHU
-    ir_load = ir_lhu(z, ir_addr);
-
     offset = rv_offset(rv, io.mem_read_s);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
@@ -275,8 +260,6 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_builder_t *b
     break;
   }
   // rv->X[rd] = rax
-  assert(ir_load);
-  ir_st_reg(z, rd, ir_load);
   set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
@@ -290,7 +273,6 @@ static bool op_op_imm(struct riscv_t *rv,
                       struct block_builder_t *builder) {
   struct block_t *block = builder->block;
   struct cg_state_t *cg = &block->cg;
-  struct ir_block_t *z = &builder->ir;
 
   // i-type decode
   const int32_t  imm    = dec_itype_imm(inst);
@@ -309,53 +291,41 @@ static bool op_op_imm(struct riscv_t *rv,
   // eax = rv->X[rs1]
   get_reg(block, rv, cg_eax, rs1);
 
-  struct ir_inst_t *lhs = ir_ld_reg(z, rs1);
-  struct ir_inst_t *res = NULL;
-
   // dispatch operation type
   switch (funct3) {
   case 0: // ADDI
-    res = ir_add(z, lhs, ir_imm(z, imm));
     cg_add_r32_i32(cg, cg_eax, imm);
     break;
   case 1: // SLLI
-    res = ir_shl(z, lhs, ir_imm(z, imm & 0x1f));
     cg_shl_r32_i8(cg, cg_eax, imm & 0x1f);
     break;
   case 2: // SLTI
-    res = ir_lt(z, lhs, ir_imm(z, imm));
     cg_cmp_r32_i32(cg, cg_eax, imm);
     cg_setcc_r8(cg, cg_cc_lt, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 3: // SLTIU
-    res = ir_ltu(z, lhs, ir_imm(z, imm));
     cg_cmp_r32_i32(cg, cg_eax, imm);
     cg_setcc_r8(cg, cg_cc_c, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
     break;
   case 4: // XORI
-    res = ir_xor(z, lhs, ir_imm(z, imm));
     cg_xor_r32_i32(cg, cg_eax, imm);
     break;
   case 5:
     if (imm & ~0x1f) {
       // SRAI
-      res = ir_sar(z, lhs, ir_imm(z, imm & 0x1f));
       cg_sar_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     else {
       // SRLI
-      res = ir_shr(z, lhs, ir_imm(z, imm & 0x1f));
       cg_shr_r32_i8(cg, cg_eax, imm & 0x1f);
     }
     break;
   case 6: // ORI
-    res = ir_or(z, lhs, ir_imm(z, imm));
     cg_or_r32_i32(cg, cg_eax, imm);
     break;
   case 7: // ANDI
-    res = ir_and(z, lhs, ir_imm(z, imm));
     cg_and_r32_i32(cg, cg_eax, imm);
     break;
   default:
@@ -363,8 +333,6 @@ static bool op_op_imm(struct riscv_t *rv,
     break;
   }
   // rv->X[rd] = eax
-  assert(res);
-  ir_st_reg(z, rd, res);
   set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->pc_end += 4;
@@ -378,7 +346,6 @@ static bool op_auipc(struct riscv_t *rv,
                      uint32_t inst,
                      struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -396,7 +363,6 @@ static bool op_auipc(struct riscv_t *rv,
   }
 
   // rv->X[rd] = imm + rv->PC;
-  ir_st_reg(z, rd, ir_imm(z, pc + imm));
   cg_mov_r32_i32(cg, cg_eax, pc + imm);
   set_reg(block, rv, rd, cg_eax);
 
@@ -411,7 +377,6 @@ static bool op_store(struct riscv_t *rv,
                      uint32_t inst,
                      struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // s-type format
@@ -431,25 +396,19 @@ static bool op_store(struct riscv_t *rv,
 
   int32_t offset;
 
-  // generate store address
-  struct ir_inst_t *ir_addr = ir_add(z, ir_ld_reg(z, rs1), ir_imm(z, imm));
-
   // dispatch by write size
   switch (funct3) {
   case 0: // SB
-    ir_sb(z, ir_addr, ir_ld_reg(z, rs2));
     // rv->io.mem_write_b(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_b);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 1: // SH
-    ir_sh(z, ir_addr, ir_ld_reg(z, rs2));
     // rv->io.mem_write_s(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_s);
     cg_call_r64disp(cg, cg_rsi, offset);
     break;
   case 2: // SW
-    ir_sw(z, ir_addr, ir_ld_reg(z, rs2));
     // rv->io.mem_write_w(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_w);
     cg_call_r64disp(cg, cg_rsi, offset);
@@ -469,7 +428,6 @@ static bool op_op(struct riscv_t *rv,
                   uint32_t inst,
                   struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // effective pc
@@ -493,49 +451,37 @@ static bool op_op(struct riscv_t *rv,
   get_reg(block, rv, cg_eax, rs1);
   get_reg(block, rv, cg_ecx, rs2);
 
-  struct ir_inst_t *lhs = ir_ld_reg(z, rs1);
-  struct ir_inst_t *rhs = ir_ld_reg(z, rs2);
-  struct ir_inst_t *res = NULL;
-
   switch (funct7) {
   case 0b0000000:
     switch (funct3) {
     case 0b000: // ADD
-      res = ir_add(z, lhs, rhs);
       cg_add_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b001: // SLL
-      res = ir_add(z, lhs, ir_and(z, rhs, ir_imm(z, 0x1f)));
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_shl_r32_cl(cg, cg_eax);
       break;
     case 0b010: // SLT
-      res = ir_lt(z, lhs, rhs);
       cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
       cg_setcc_r8(cg, cg_cc_lt, cg_dl);
       cg_movzx_r32_r8(cg, cg_eax, cg_dl);
       break;
     case 0b011: // SLTU
-      res = ir_ltu(z, lhs, rhs);
       cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
       cg_setcc_r8(cg, cg_cc_c, cg_dl);
       cg_movzx_r32_r8(cg, cg_eax, cg_dl);
       break;
     case 0b100: // XOR
-      res = ir_xor(z, lhs, rhs);
       cg_xor_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b101: // SRL
-      res = ir_shl(z, lhs, ir_and(z, rhs, ir_imm(z, 0x1f)));
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_shr_r32_cl(cg, cg_eax);
       break;
     case 0b110: // OR
-      res = ir_or(z, lhs, rhs);
       cg_or_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b111: // AND
-      res = ir_and(z, lhs, rhs);
       cg_and_r32_r32(cg, cg_eax, cg_ecx);
       break;
     default:
@@ -546,11 +492,9 @@ static bool op_op(struct riscv_t *rv,
   case 0b0100000:
     switch (funct3) {
     case 0b000: // SUB
-      res = ir_sub(z, lhs, rhs);
       cg_sub_r32_r32(cg, cg_eax, cg_ecx);
       break;
     case 0b101: // SRA
-      res = ir_sar(z, lhs, ir_and(z, rhs, ir_imm(z, 0x1f)));
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_sar_r32_cl(cg, cg_eax);
       break;
@@ -688,7 +632,6 @@ static bool op_lui(struct riscv_t *rv,
                    uint32_t inst,
                    struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // u-type decode
@@ -696,7 +639,6 @@ static bool op_lui(struct riscv_t *rv,
   const uint32_t val = dec_utype_imm(inst);
   // rv->X[rd] = val;
   if (rd != rv_reg_zero) {
-    ir_st_reg(z, rd, ir_imm(z, val));
     cg_mov_r32_i32(cg, cg_eax, val);
     set_reg(block, rv, rd, cg_eax);
   }
@@ -711,7 +653,6 @@ static bool op_branch(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -729,44 +670,30 @@ static bool op_branch(struct riscv_t *rv,
   cg_mov_r32_i32(cg, cg_eax, pc + 4);
   cg_mov_r32_i32(cg, cg_edx, pc + imm);
 
-  struct ir_inst_t *lhs = ir_ld_reg(z, rs1);
-  struct ir_inst_t *rhs = ir_ld_reg(z, rs2);
-
-  struct ir_inst_t *next = ir_imm(z, pc + 4);
-  struct ir_inst_t *targ = ir_imm(z, pc + imm);
-  struct ir_inst_t *cond = NULL;
-
   // dispatch by branch type
   switch (func3) {
   case 0: // BEQ
-    cond = ir_eq(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_eq, cg_eax, cg_edx);
     break;
   case 1: // BNE
-    cond = ir_neq(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_ne, cg_eax, cg_edx);
     break;
   case 4: // BLT
-    cond = ir_lt(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_lt, cg_eax, cg_edx);
     break;
   case 5: // BGE
-    cond = ir_ge(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_ge, cg_eax, cg_edx);
     break;
   case 6: // BLTU
-    cond = ir_ltu(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_c, cg_eax, cg_edx);
     break;
   case 7: // BGEU
-    cond = ir_geu(z, lhs, rhs);
     cg_cmov_r32_r32(cg, cg_cc_ae, cg_eax, cg_edx);
     break;
   default:
     assert(!"unreachable");
   }
   // load PC with the target
-  ir_branch(z, cond, targ, next);
   set_pc(block, rv, cg_eax);
   // step over instruction
   block->instructions += 1;
@@ -779,7 +706,6 @@ static bool op_jalr(struct riscv_t *rv,
                     uint32_t inst,
                     struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -792,10 +718,6 @@ static bool op_jalr(struct riscv_t *rv,
   // jump
   // note: we also clear the least significant bit of pc
 
-  struct ir_inst_t *addr =
-    ir_and(z, ir_add(z, ir_ld_reg(z, rs1), ir_imm(z, imm)), ir_imm(z, 0xfffffffe));
-  ir_st_pc(z, addr);
-
   get_reg(block, rv, cg_eax, rs1);
   cg_add_r32_i32(cg, cg_eax, imm);
   cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
@@ -803,7 +725,6 @@ static bool op_jalr(struct riscv_t *rv,
 
   // link
   if (rd != rv_reg_zero) {
-    ir_st_reg(z, rd, ir_imm(z, pc + 4));
     cg_mov_r32_i32(cg, cg_eax, pc + 4);
     set_reg(block, rv, rd, cg_eax);
   }
@@ -826,7 +747,6 @@ static bool op_jal(struct riscv_t *rv,
                    uint32_t inst,
                    struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -839,13 +759,11 @@ static bool op_jal(struct riscv_t *rv,
   // note: rel is aligned to a two byte boundary so we dont needs to do any
   //       masking here.
 
-  ir_st_pc(z, ir_imm(z, pc + rel));
   cg_mov_r32_i32(cg, cg_eax, pc + rel);
   set_pc(block, rv, cg_eax);
 
   // link
   if (rd != rv_reg_zero) {
-    ir_st_reg(z, rd, ir_imm(z, pc + 4));
     cg_mov_r32_i32(cg, cg_eax, pc + 4);
     set_reg(block, rv, rd, cg_eax);
   }
@@ -868,7 +786,6 @@ static bool op_system(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_builder_t *builder) {
   struct block_t *block = builder->block;
-  struct ir_block_t *z = &builder->ir;
   struct cg_state_t *cg = &block->cg;
 
   // the effective current PC
@@ -895,12 +812,10 @@ static bool op_system(struct riscv_t *rv,
     // dispatch from imm field
     switch (imm) {
     case 0: // ECALL
-      ir_ecall(z);
       offset = rv_offset(rv, io.on_ecall);
       cg_call_r64disp(cg, cg_rsi, offset);
       break;
     case 1: // EBREAK
-      ir_ebreak(z);
       offset = rv_offset(rv, io.on_ebreak);
       cg_call_r64disp(cg, cg_rsi, offset);
       break;
@@ -925,7 +840,7 @@ static bool op_system(struct riscv_t *rv,
   block->pc_end += 4;
 
   // XXX: assume we wont branch for now but will need to be updated later
-  return true;
+  return false;
 }
 
 // opcode handler type
@@ -947,7 +862,6 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
 
   struct block_builder_t builder;
   builder.block = block;
-  ir_init(&builder.ir);
 
   struct cg_state_t *cg = &block->cg;
 
