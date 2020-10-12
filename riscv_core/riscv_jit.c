@@ -888,9 +888,107 @@ static bool op_store_fp(struct riscv_t *rv,
   // cant branch
   return true;
 }
+
+static bool op_fp(struct riscv_t *rv,
+                  uint32_t inst,
+                  struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t rm     = dec_funct3(inst); // TODO: rounding!
+  const uint32_t funct7 = dec_funct7(inst);
+
+  // dispatch based on func7 (low 2 bits are width)
+  switch (funct7) {
+  case 0b0000000:  // FADD
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+    cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    break;
+  case 0b0000100:  // FSUB
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+    cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    break;
+  case 0b0001000:  // FMUL
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    break;
+  case 0b0001100:  // FDIV
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+    cg_divss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    break;
+  case 0b0101100:  // FSQRT
+    cg_sqrtss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    break;
+  case 0b1100000:
+    switch (rs2) {
+    // note: these instructions are effectively the same for us currently
+    case 0b00000:  // FCVT.W.S
+    case 0b00001:  // FCVT.WU.S
+      cg_cvttss2si_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[rs1]));
+      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
+      break;
+    default:
+      // unsupported instruction
+      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
+      set_pc(block, rv, cg_eax);
+      return false;
+    }
+    break;
+  case 0b1110000:
+    switch (rm) {
+    case 0b000:  // FMV.X.W
+      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[rs1]));
+      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
+      break;
+    default:
+      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
+      set_pc(block, rv, cg_eax);
+      return false;
+    }
+    break;
+  case 0b1101000:
+    switch (rs2) {
+      // note: these instructions are affectively the same for us currently
+    case 0b00000:  // FCVT.S.W
+    case 0b00001:  // FCVT.S.WU
+      cg_cvtsi2ss_r64disp_r32(cg, cg_xmm0, cg_rsi, rv_offset(rv, X[rs1]));
+      cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+      break;
+    default:
+      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
+      set_pc(block, rv, cg_eax);
+      return false;
+    }
+    break;
+  case 0b1111000:  // FMV.W.X
+    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[rs1]));
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[rd]), cg_eax);
+    break;
+  default:
+    // unsupported instruction
+    cg_mov_r32_i32(cg, cg_eax, block->pc_end);
+    set_pc(block, rv, cg_eax);
+    return false;
+  }
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+  // cant branch
+  return true;
+}
 #else
 #define op_load_fp NULL
 #define op_store_fp NULL
+#define op_fp NULL
 #endif
 
 // opcode handler type
@@ -903,7 +1001,7 @@ static const opcode_t opcodes[] = {
 //  000        001          010       011          100        101       110   111
     op_load,   op_load_fp,  NULL,     NULL,        op_op_imm, op_auipc, NULL, NULL, // 00
     op_store,  op_store_fp, NULL,     NULL,        op_op,     op_lui,   NULL, NULL, // 01
-    NULL,      NULL,        NULL,     NULL,        NULL,      NULL,     NULL, NULL, // 10
+    NULL,      NULL,        NULL,     NULL,        op_fp,     NULL,     NULL, NULL, // 10
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 

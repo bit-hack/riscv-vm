@@ -17,6 +17,7 @@ typedef int cg_r16_t;
 typedef int cg_r32_t;
 typedef int cg_r64_t;
 typedef int cg_cc_t;
+typedef int cg_xmm_t;
 
 enum {
   cg_al,
@@ -69,6 +70,17 @@ enum {
   cg_r13,
   cg_r14,
   cg_r15,
+};
+
+enum {
+  cg_xmm0,
+  cg_xmm1,
+  cg_xmm2,
+  cg_xmm3,
+  cg_xmm4,
+  cg_xmm5,
+  cg_xmm6,
+  cg_xmm7,
 };
 
 enum cc_t {
@@ -179,3 +191,16 @@ const char *cg_r64_str(cg_r32_t reg);
 const char *cg_r32_str(cg_r32_t reg);
 const char *cg_r16_str(cg_r32_t reg);
 const char *cg_r8_str(cg_r32_t reg);
+
+void cg_movss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+void cg_movss_r64disp_xmm(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_xmm_t dst);
+
+void cg_addss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+void cg_subss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+void cg_mulss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+void cg_divss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+
+void cg_sqrtss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset);
+
+void cg_cvttss2si_r32_r64disp(struct cg_state_t *cg, cg_r32_t dst, cg_r64_t base, int32_t offset);
+void cg_cvtsi2ss_r64disp_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset);

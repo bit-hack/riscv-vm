@@ -484,3 +484,77 @@ void cg_init(struct cg_state_t *cg, uint8_t *start, uint8_t *end) {
   cg->end = end;
   memset(start, 0xcc, end - start);
 }
+
+void cg_movss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x10", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_movss_r64disp_xmm(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_xmm_t dst) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x11", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_addss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x58", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_subss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x5C", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_mulss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x59", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_divss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x5E", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_sqrtss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  cg_emit_data(cg, "\xf3\x0f\x51", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_cvttss2si_r32_r64disp(struct cg_state_t *cg, cg_r32_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  assert(dst == cg_eax); // for now
+  cg_emit_data(cg, "\xf3\x0f\x2C", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
+
+void cg_cvtsi2ss_r64disp_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
+  assert(base == cg_rsi); // for now
+  assert(dst == cg_xmm0); // for now
+  cg_emit_data(cg, "\xf3\x0f\x2A", 3);
+  const uint8_t op = 0x86 | ((dst & 7) << 3);
+  cg_emit_data(cg, &op, 1);
+  cg_emit_data(cg, &offset, sizeof(offset));
+}
