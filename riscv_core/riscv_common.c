@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <assert.h>
+#include <stddef.h>
 
 #include "riscv.h"
 #include "riscv_private.h"
@@ -108,4 +109,79 @@ void rv_except_store_misaligned(struct riscv_t *rv, uint32_t addr) {
 
 void rv_except_illegal_inst(struct riscv_t *rv) {
   assert(!"illegal instruction");
+}
+
+// get a pointer to a CSR
+static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
+  switch (csr) {
+  case CSR_CYCLE:
+    return (uint32_t*)(&rv->csr_cycle) + 0;
+  case CSR_CYCLEH:
+    return (uint32_t*)(&rv->csr_cycle) + 1;
+  case CSR_MSTATUS:
+    return (uint32_t*)(&rv->csr_mstatus);
+  case CSR_MTVEC:
+    return (uint32_t*)(&rv->csr_mtvec);
+  case CSR_MISA:
+    return (uint32_t*)(&rv->csr_misa);
+  case CSR_MSCRATCH:
+    return (uint32_t*)(&rv->csr_mscratch);
+  case CSR_MEPC:
+    return (uint32_t*)(&rv->csr_mepc);
+  case CSR_MCAUSE:
+    return (uint32_t*)(&rv->csr_mcause);
+  case CSR_MTVAL:
+    return (uint32_t*)(&rv->csr_mtval);
+  case CSR_MIP:
+    return (uint32_t*)(&rv->csr_mip);
+#if RISCV_VM_SUPPORT_RV32F
+  case CSR_FCSR:
+    return (uint32_t*)(&rv->csr_fcsr);
+#endif
+  default:
+    return NULL;
+  }
+}
+
+static bool csr_is_writable(uint32_t csr) {
+  return csr < 0xc00;
+}
+
+// perform csrrw
+uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c = val;
+  }
+  return out;
+}
+
+// perform csrrs (atomic read and set)
+uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c |= val;
+  }
+  return out;
+}
+
+// perform csrrc (atomic read and clear)
+uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
+  uint32_t *c = csr_get_ptr(rv, csr);
+  if (!c) {
+    return 0;
+  }
+  const uint32_t out = *c;
+  if (csr_is_writable(csr)) {
+    *c &= ~val;
+  }
+  return out;
 }

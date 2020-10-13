@@ -11,81 +11,6 @@
 #include "riscv_private.h"
 
 
-// get a pointer to a CSR
-static uint32_t *csr_get_ptr(struct riscv_t *rv, uint32_t csr) {
-  switch (csr) {
-  case CSR_CYCLE:
-    return (uint32_t*)(&rv->csr_cycle) + 0;
-  case CSR_CYCLEH:
-    return (uint32_t*)(&rv->csr_cycle) + 1;
-  case CSR_MSTATUS:
-    return (uint32_t*)(&rv->csr_mstatus);
-  case CSR_MTVEC:
-    return (uint32_t*)(&rv->csr_mtvec);
-  case CSR_MISA:
-    return (uint32_t*)(&rv->csr_misa);
-  case CSR_MSCRATCH:
-    return (uint32_t*)(&rv->csr_mscratch);
-  case CSR_MEPC:
-    return (uint32_t*)(&rv->csr_mepc);
-  case CSR_MCAUSE:
-    return (uint32_t*)(&rv->csr_mcause);
-  case CSR_MTVAL:
-    return (uint32_t*)(&rv->csr_mtval);
-  case CSR_MIP:
-    return (uint32_t*)(&rv->csr_mip);
-#if RISCV_VM_SUPPORT_RV32F
-  case CSR_FCSR:
-    return (uint32_t*)(&rv->csr_fcsr);
-#endif
-  default:
-    return NULL;
-  }
-}
-
-static bool csr_is_writable(uint32_t csr) {
-  return csr < 0xc00;
-}
-
-// perform csrrw
-static uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val) {
-  uint32_t *c = csr_get_ptr(rv, csr);
-  if (!c) {
-    return 0;
-  }
-  const uint32_t out = *c;
-  if (csr_is_writable(csr)) {
-    *c = val;
-  }
-  return out;
-}
-
-// perform csrrs (atomic read and set)
-static uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val) {
-  uint32_t *c = csr_get_ptr(rv, csr);
-  if (!c) {
-    return 0;
-  }
-  const uint32_t out = *c;
-  if (csr_is_writable(csr)) {
-    *c |= val;
-  }
-  return out;
-}
-
-// perform csrrc (atomic read and clear)
-static uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
-  uint32_t *c = csr_get_ptr(rv, csr);
-  if (!c) {
-    return 0;
-  }
-  const uint32_t out = *c;
-  if (csr_is_writable(csr)) {
-    *c &= ~val;
-  }
-  return out;
-}
-
 static bool op_load(struct riscv_t *rv, uint32_t inst) {
   // itype format
   const int32_t  imm    = dec_itype_imm(inst);
@@ -257,6 +182,8 @@ static bool op_op(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rs1    = dec_rs1(inst);
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct7 = dec_funct7(inst);
+
+  // XXX: skip zero register here
 
   switch (funct7) {
   case 0b0000000:
@@ -690,46 +617,6 @@ static bool op_amo(struct riscv_t *rv, uint32_t inst) {
 #endif  // RISCV_VM_SUPPORT_RV32A
 
 #if RISCV_VM_SUPPORT_RV32F
-enum {
-  //             ....xxxx....xxxx....xxxx....xxxx
-  FMASK_SIGN = 0b10000000000000000000000000000000,
-  FMASK_EXPN = 0b01111111100000000000000000000000,
-  FMASK_FRAC = 0b00000000011111111111111111111111,
-  //             ........xxxxxxxx........xxxxxxxx
-};
-
-static uint32_t calc_fclass(uint32_t f) {
-  const uint32_t sign = f & FMASK_SIGN;
-  const uint32_t expn = f & FMASK_EXPN;
-  const uint32_t frac = f & FMASK_FRAC;
-
-  // note: this could be turned into a binary decision tree for speed
-
-  uint32_t out = 0;
-  // 0x001    rs1 is -INF
-  out |= (f == 0xff800000)                               ? 0x001 : 0;
-  // 0x002    rs1 is negative normal
-  out |= (expn && expn < 0x78000000 && sign)             ? 0x002 : 0;
-  // 0x004    rs1 is negative subnormal
-  out |= (!expn && frac && sign)                         ? 0x004 : 0;
-  // 0x008    rs1 is -0
-  out |= (f == 0x80000000)                               ? 0x008 : 0;
-  // 0x010    rs1 is +0
-  out |= (f == 0x00000000)                               ? 0x010 : 0;
-  // 0x020    rs1 is positive subnormal
-  out |= (!expn && frac && !sign)                        ? 0x020 : 0;
-  // 0x040    rs1 is positive normal
-  out |= (expn && expn < 0x78000000 && !sign)            ? 0x040 : 0;
-  // 0x080    rs1 is +INF
-  out |= (f == 0x7f800000)                               ? 0x080 : 0;
-  // 0x100    rs1 is a signaling NaN
-  out |= (expn == FMASK_EXPN && (frac <= 0x7ff) && frac) ? 0x100 : 0;
-  // 0x200    rs1 is a quiet NaN
-  out |= (expn == FMASK_EXPN && (frac >= 0x800))         ? 0x200 : 0;
-
-  return out;
-}
-
 static bool op_load_fp(struct riscv_t *rv, uint32_t inst) {
   const uint32_t rd  = dec_rd(inst);
   const uint32_t rs1 = dec_rs1(inst);
@@ -926,7 +813,7 @@ static bool op_nmsub(struct riscv_t *rv, uint32_t inst) {
   const uint32_t fmt = dec_r4type_fmt(inst);  // unused
   const uint32_t rs3 = dec_r4type_rs3(inst);
   // compute
-  rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) + rv->F[rs3];
+  rv->F[rd] = rv->F[rs3] - (rv->F[rs1] * rv->F[rs2]);
   // step over instruction
   rv->PC += 4;
   return true;

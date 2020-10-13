@@ -71,6 +71,9 @@ void syscall_draw_frame(struct riscv_t *rv) {
     s->mem.read((uint8_t*)g_video->pixels, screen, width * height * 4);
     SDL_Flip(g_video);
   }
+#if 1
+  SDL_Delay(1);
+#endif
 }
 
 void syscall_draw_frame_pal(struct riscv_t *rv) {
@@ -108,6 +111,9 @@ void syscall_draw_frame_pal(struct riscv_t *rv) {
 
     SDL_Flip(g_video);
   }
+#if 1
+  SDL_Delay(1);
+#endif
 }
 
 #endif  // RISCV_VM_USE_SDL

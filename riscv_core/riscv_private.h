@@ -77,6 +77,14 @@ enum {
   //               ....xxxx....xxxx....xxxx....xxxx
 };
 
+enum {
+  //             ....xxxx....xxxx....xxxx....xxxx
+  FMASK_SIGN = 0b10000000000000000000000000000000,
+  FMASK_EXPN = 0b01111111100000000000000000000000,
+  FMASK_FRAC = 0b00000000011111111111111111111111,
+  //             ........xxxxxxxx........xxxxxxxx
+};
+
 // a translated basic block
 struct block_t {
   // number of instructions encompased
@@ -101,6 +109,11 @@ struct riscv_jit_t {
   // block hash map
   uint32_t block_map_size;
   struct block_t **block_map;
+
+  // handler for non jitted op_op instructions
+  void(*handle_op_op)(struct riscv_t *, uint32_t);
+  void(*handle_op_fp)(struct riscv_t *, uint32_t);
+  void(*handle_op_system)(struct riscv_t *, uint32_t);
 };
 
 struct riscv_t {
@@ -227,6 +240,39 @@ static inline uint32_t sign_extend_b(uint32_t x) {
   return (int32_t)((int8_t)x);
 }
 
+// compute the fclass result
+static inline uint32_t calc_fclass(uint32_t f) {
+  const uint32_t sign = f & FMASK_SIGN;
+  const uint32_t expn = f & FMASK_EXPN;
+  const uint32_t frac = f & FMASK_FRAC;
+
+  // note: this could be turned into a binary decision tree for speed
+
+  uint32_t out = 0;
+  // 0x001    rs1 is -INF
+  out |= (f == 0xff800000) ? 0x001 : 0;
+  // 0x002    rs1 is negative normal
+  out |= (expn && expn < 0x78000000 && sign) ? 0x002 : 0;
+  // 0x004    rs1 is negative subnormal
+  out |= (!expn && frac && sign) ? 0x004 : 0;
+  // 0x008    rs1 is -0
+  out |= (f == 0x80000000) ? 0x008 : 0;
+  // 0x010    rs1 is +0
+  out |= (f == 0x00000000) ? 0x010 : 0;
+  // 0x020    rs1 is positive subnormal
+  out |= (!expn && frac && !sign) ? 0x020 : 0;
+  // 0x040    rs1 is positive normal
+  out |= (expn && expn < 0x78000000 && !sign) ? 0x040 : 0;
+  // 0x080    rs1 is +INF
+  out |= (f == 0x7f800000) ? 0x080 : 0;
+  // 0x100    rs1 is a signaling NaN
+  out |= (expn == FMASK_EXPN && (frac <= 0x7ff) && frac) ? 0x100 : 0;
+  // 0x200    rs1 is a quiet NaN
+  out |= (expn == FMASK_EXPN && (frac >= 0x800)) ? 0x200 : 0;
+
+  return out;
+}
+
 bool rv_init_jit(struct riscv_t *rv);
 bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target);
 
@@ -234,3 +280,7 @@ void rv_except_inst_misaligned(struct riscv_t *rv, uint32_t old_pc);
 void rv_except_load_misaligned(struct riscv_t *rv, uint32_t addr);
 void rv_except_store_misaligned(struct riscv_t *rv, uint32_t addr);
 void rv_except_illegal_inst(struct riscv_t *rv);
+
+uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val);
+uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val);
+uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val);

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -41,7 +42,7 @@
 
 
 // total size of the code block
-static const uint32_t code_size = 1024 * 1024 * 4;
+static const uint32_t code_size = 1024 * 1024 * 8;
 
 // total number of block map entries
 static const uint32_t map_size = 1024 * 64;
@@ -439,6 +440,89 @@ static bool op_store(struct riscv_t *rv,
   return true;
 }
 
+// callback for unhandled op_op instructions
+static void handle_op_op(struct riscv_t *rv, uint32_t inst) {
+  // r-type decode
+  const uint32_t rd     = dec_rd(inst);
+  const uint32_t funct3 = dec_funct3(inst);
+  const uint32_t rs1    = dec_rs1(inst);
+  const uint32_t rs2    = dec_rs2(inst);
+  const uint32_t funct7 = dec_funct7(inst);
+
+  switch (funct7) {
+  case 0b0000001:
+    // RV32M instructions
+    switch (funct3) {
+    case 0b010: // MULHSU
+      {
+        const int64_t a = (int32_t)rv->X[rs1];
+        const uint64_t b = rv->X[rs2];
+        rv->X[rd] = ((uint64_t)(a * b)) >> 32;
+      }
+      break;
+    case 0b100: // DIV
+      {
+        const int32_t dividend = (int32_t)rv->X[rs1];
+        const int32_t divisor = (int32_t)rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = ~0u;
+        }
+        else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+          rv->X[rd] = rv->X[rs1];
+        }
+        else {
+          rv->X[rd] = dividend / divisor;
+        }
+      }
+      break;
+    case 0b101: // DIVU
+      {
+        const uint32_t dividend = rv->X[rs1];
+        const uint32_t divisor = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = ~0u;
+        }
+        else {
+          rv->X[rd] = dividend / divisor;
+        }
+      }
+      break;
+    case 0b110: // REM
+      {
+        const int32_t dividend = rv->X[rs1];
+        const int32_t divisor = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = dividend;
+        }
+        else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
+          rv->X[rd] = 0;
+        }
+        else {
+          rv->X[rd] = dividend % divisor;
+        }
+      }
+      break;
+    case 0b111: // REMU
+      {
+        const uint32_t dividend = rv->X[rs1];
+        const uint32_t divisor = rv->X[rs2];
+        if (divisor == 0) {
+          rv->X[rd] = dividend;
+        }
+        else {
+          rv->X[rd] = dividend % divisor;
+        }
+      }
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  default:
+    assert(!"unreachable");
+  }
+}
+
 static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
 
   struct cg_state_t *cg = &block->cg;
@@ -516,7 +600,6 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       break;
     }
     break;
-
 #if RISCV_VM_SUPPORT_RV32M
   case 0b0000001:
     // RV32M instructions
@@ -528,102 +611,29 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       cg_imul_r32(cg, cg_ecx);
       cg_mov_r32_r32(cg, cg_eax, cg_edx);
       break;
-    case 0b010: // MULHSU
-      // const int64_t a = (int32_t)rv->X[rs1];
-      // const uint64_t b = rv->X[rs2];
-      // rv->X[rd] = ((uint64_t)(a * b)) >> 32;
-
-      // cant translate this instruction - terminate block
-      cg_mov_r32_i32(cg, cg_eax, pc);
-      set_pc(block, rv, cg_eax);
-      return false;
-
-      break;
     case 0b011: // MULHU
       cg_imul_r32(cg, cg_ecx);
       cg_mov_r32_r32(cg, cg_eax, cg_edx);
       break;
+    case 0b010: // MULHSU
     case 0b100: // DIV
-    {
-      // const int32_t dividend = (int32_t)rv->X[rs1];
-      // const int32_t divisor = (int32_t)rv->X[rs2];
-      // if (divisor == 0) {
-      //   rv->X[rd] = ~0u;
-      // }
-      // else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
-      //   rv->X[rd] = rv->X[rs1];
-      // }
-      // else {
-      //   rv->X[rd] = dividend / divisor;
-      // }
-
-      // cant translate this instruction - terminate block
-      cg_mov_r32_i32(cg, cg_eax, pc);
-      set_pc(block, rv, cg_eax);
-      return false;
-
-    }
-    break;
     case 0b101: // DIVU
-    {
-      // const uint32_t dividend = rv->X[rs1];
-      // const uint32_t divisor = rv->X[rs2];
-      // if (divisor == 0) {
-      //   rv->X[rd] = ~0u;
-      // }
-      // else {
-      //   rv->X[rd] = dividend / divisor;
-      // }
-
-      // cant translate this instruction - terminate block
-      cg_mov_r32_i32(cg, cg_eax, pc);
-      set_pc(block, rv, cg_eax);
-      return false;
-
-    }
-    break;
     case 0b110: // REM
-    {
-      // const int32_t dividend = rv->X[rs1];
-      // const int32_t divisor = rv->X[rs2];
-      // if (divisor == 0) {
-      //   rv->X[rd] = dividend;
-      // }
-      // else if (divisor == -1 && rv->X[rs1] == 0x80000000u) {
-      //   rv->X[rd] = 0;
-      // }
-      // else {
-      //   rv->X[rd] = dividend % divisor;
-      // }
-
-      // cant translate this instruction - terminate block
-      cg_mov_r32_i32(cg, cg_eax, pc);
-      set_pc(block, rv, cg_eax);
-      return false;
-
-    }
-    break;
     case 0b111: // REMU
-    {
-      // const uint32_t dividend = rv->X[rs1];
-      // const uint32_t divisor = rv->X[rs2];
-      // if (divisor == 0) {
-      //   rv->X[rd] = dividend;
-      // }
-      // else {
-      //   rv->X[rd] = dividend % divisor;
-      // }
-
+      // offload to a specific instruction handler
+      cg_mov_r64_r64(cg, cg_rcx, cg_rsi);  // arg1 - rv
+      cg_mov_r32_i32(cg, cg_edx, inst);    // arg2 - inst
+      cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_op));
+      // step over instruction
+      block->instructions += 1;
+      block->pc_end += 4;
+      // cant branch
+      return true;
+    default:
       // cant translate this instruction - terminate block
       cg_mov_r32_i32(cg, cg_eax, pc);
       set_pc(block, rv, cg_eax);
       return false;
-
-    }
-    break;
-    default:
-      assert(!"unreachable");
-      break;
     }
     break;
 #endif  // RISCV_VM_SUPPORT_RV32M
@@ -773,6 +783,50 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   return false;
 }
 
+static void handle_op_system(struct riscv_t *rv,
+                             uint32_t inst) {
+  // i-type decode
+  const int32_t  imm = dec_itype_imm(inst);
+  const int32_t  csr = dec_csr(inst);
+  const uint32_t funct3 = dec_funct3(inst);
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rd = dec_rd(inst);
+
+  uint32_t tmp;
+
+  // dispatch by func3 field
+  switch (funct3) {
+#if RISCV_VM_SUPPORT_Zicsr
+  case 1: // CSRRW    (Atomic Read/Write CSR)
+    tmp = csr_csrrw(rv, csr, rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+  case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
+    tmp = csr_csrrs(rv, csr, (rs1 == rv_reg_zero) ? 0u : rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+  case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
+    tmp = csr_csrrc(rv, csr, (rs1 == rv_reg_zero) ? ~0u : rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+  case 5: // CSRRWI
+    tmp = csr_csrrc(rv, csr, rv->X[rs1]);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+  case 6: // CSRRSI
+    tmp = csr_csrrs(rv, csr, rs1);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+  case 7: // CSRRCI
+    tmp = csr_csrrc(rv, csr, rs1);
+    rv->X[rd] = rd ? tmp : rv->X[rd];
+    break;
+#endif  // RISCV_VM_SUPPORT_Zicsr
+  default:
+    assert(!"unreachable");
+  }
+}
+
 static bool op_system(struct riscv_t *rv,
                       uint32_t inst,
                       struct block_t *block) {
@@ -814,6 +868,23 @@ static bool op_system(struct riscv_t *rv,
       assert(!"unreachable");
     }
     break;
+#if RISCV_VM_SUPPORT_Zicsr
+  case 1: // CSRRW    (Atomic Read/Write CSR)
+  case 2: // CSRRS    (Atomic Read and Set Bits in CSR)
+  case 3: // CSRRC    (Atomic Read and Clear Bits in CSR)
+  case 5: // CSRRWI
+  case 6: // CSRRSI
+  case 7: // CSRRCI
+      // offload to a specific instruction handler
+    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);  // arg1 - rv
+    cg_mov_r32_i32(cg, cg_edx, inst);    // arg2 - inst
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_system));
+    // step over instruction
+    block->instructions += 1;
+    block->pc_end += 4;
+    // cant branch
+    return true;
+#endif  // RISCV_VM_SUPPORT_Zicsr
   default:
     // cant translate this instruction - terminate block
     cg_mov_r32_i32(cg, cg_eax, pc);
@@ -889,6 +960,81 @@ static bool op_store_fp(struct riscv_t *rv,
   return true;
 }
 
+// callback for unhandled op_fp instructions
+static void handle_op_fp(struct riscv_t *rv, uint32_t inst) {
+  const uint32_t rd = dec_rd(inst);
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t rm = dec_funct3(inst); // TODO: rounding!
+  const uint32_t funct7 = dec_funct7(inst);
+  // dispatch based on func7 (low 2 bits are width)
+  switch (funct7) {
+  case 0b0010000:
+  {
+    uint32_t f1, f2, res;
+    memcpy(&f1, rv->F + rs1, 4);
+    memcpy(&f2, rv->F + rs2, 4);
+    switch (rm) {
+    case 0b000:  // FSGNJ.S
+      res = (f1 & ~FMASK_SIGN) | (f2 & FMASK_SIGN);
+      break;
+    case 0b001:  // FSGNJN.S
+      res = (f1 & ~FMASK_SIGN) | (~f2 & FMASK_SIGN);
+      break;
+    case 0b010:  // FSGNJX.S
+      res = f1 ^ (f2 & FMASK_SIGN);
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    memcpy(rv->F + rd, &res, 4);
+    break;
+  }
+  case 0b0010100:
+    switch (rm) {
+    case 0b000:  // FMIN
+      rv->F[rd] = fminf(rv->F[rs1], rv->F[rs2]);
+      break;
+    case 0b001:  // FMAX
+      rv->F[rd] = fmaxf(rv->F[rs1], rv->F[rs2]);
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1110000:
+    switch (rm) {
+    case 0b001:  // FCLASS.S
+    {
+      uint32_t bits;
+      memcpy(&bits, rv->F + rs1, 4);
+      rv->X[rd] = calc_fclass(bits);
+      break;
+    }
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  case 0b1010000:
+    switch (rm) {
+    case 0b010:  // FEQ.S
+      rv->X[rd] = (rv->F[rs1] == rv->F[rs2]) ? 1 : 0;
+      break;
+    case 0b001:  // FLT.S
+      rv->X[rd] = (rv->F[rs1] < rv->F[rs2]) ? 1 : 0;
+      break;
+    case 0b000:  // FLE.S
+      rv->X[rd] = (rv->F[rs1] <= rv->F[rs2]) ? 1 : 0;
+      break;
+    default:
+      assert(!"unreachable");
+    }
+    break;
+  default:
+    assert(!"unreachable");
+  }
+}
+
 static bool op_fp(struct riscv_t *rv,
                   uint32_t inst,
                   struct block_t *block) {
@@ -948,6 +1094,15 @@ static bool op_fp(struct riscv_t *rv,
       cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[rs1]));
       cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
       break;
+    case 0b001:  // FCLASS.S
+      cg_mov_r64_r64(cg, cg_rcx, cg_rsi);   // arg1 - rv
+      cg_mov_r32_i32(cg, cg_edx, inst);     // arg2 - inst
+      cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_fp));
+      // step over instruction
+      block->instructions += 1;
+      block->pc_end += 4;
+      // cant branch
+      return true;
     default:
       cg_mov_r32_i32(cg, cg_eax, block->pc_end);
       set_pc(block, rv, cg_eax);
@@ -972,6 +1127,17 @@ static bool op_fp(struct riscv_t *rv,
     cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[rs1]));
     cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[rd]), cg_eax);
     break;
+  case 0b0010000: // FSGNJ.S, FSGNJN.S, FSGNJX.S
+  case 0b0010100: // FMIN, FMAX
+  case 0b1010000: // FEQ.S, FLT.S, FLE.S
+    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);   // arg1 - rv
+    cg_mov_r32_i32(cg, cg_edx, inst);     // arg2 - inst
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_fp));
+    // step over instruction
+    block->instructions += 1;
+    block->pc_end += 4;
+    // cant branch
+    return true;
   default:
     // unsupported instruction
     cg_mov_r32_i32(cg, cg_eax, block->pc_end);
@@ -985,10 +1151,64 @@ static bool op_fp(struct riscv_t *rv,
   // cant branch
   return true;
 }
+
+static bool op_madd(struct riscv_t *rv,
+                    uint32_t inst,
+                    struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd = dec_rd(inst);
+  const uint32_t rm = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+
+  // rv->F[rd] = rv->F[rs1] * rv->F[rs2] + rv->F[rs3];
+  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+  cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+  // cant branch
+  return true;
+}
+
+static bool op_msub(struct riscv_t *rv,
+  uint32_t inst,
+  struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd = dec_rd(inst);
+  const uint32_t rm = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+
+  // rv->F[rd] = rv->F[rs1] * rv->F[rs2] - rv->F[rs3];
+  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+  cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+  // cant branch
+  return true;
+}
 #else
-#define op_load_fp NULL
+#define op_load_fp  NULL
 #define op_store_fp NULL
-#define op_fp NULL
+#define op_fp       NULL
+#define op_madd     NULL
+#define op_msub     NULL
 #endif
 
 // opcode handler type
@@ -1001,7 +1221,7 @@ static const opcode_t opcodes[] = {
 //  000        001          010       011          100        101       110   111
     op_load,   op_load_fp,  NULL,     NULL,        op_op_imm, op_auipc, NULL, NULL, // 00
     op_store,  op_store_fp, NULL,     NULL,        op_op,     op_lui,   NULL, NULL, // 01
-    NULL,      NULL,        NULL,     NULL,        op_fp,     NULL,     NULL, NULL, // 10
+    op_madd,   op_msub,     NULL,     NULL,        op_fp,     NULL,     NULL, NULL, // 10
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
@@ -1127,6 +1347,11 @@ bool rv_init_jit(struct riscv_t *rv) {
     jit->head = ptr;
     jit->end = jit->start + code_size;
   }
+
+  // setup nonjit instruction callbacks
+  jit->handle_op_op     = handle_op_op;
+  jit->handle_op_fp     = handle_op_fp;
+  jit->handle_op_system = handle_op_system;
 
   return true;
 }
