@@ -21,7 +21,6 @@ void print_usage(const char *filename) {
   --trace        | Print execution trace
   --show-mips    | Show MIPS throughput
   --fullscreen   | Run in a fullscreen window
-  --no-jit       | Disable JIT code generation
 )", filename);
 }
 
@@ -48,10 +47,6 @@ bool parse_args(int argc, char **args) {
       }
       if (0 == strcmp(arg, "--fullscreen")) {
         g_fullscreen = true;
-        continue;
-      }
-      if (0 == strcmp(arg, "--no-jit")) {
-        g_no_jit = true;
         continue;
       }
       // error

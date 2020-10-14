@@ -48,8 +48,7 @@ static void cg_emit_data(struct cg_state_t *cg, const void *data, size_t size) {
   cg->head += size;
 }
 
-static void cg_modrm(struct cg_state_t *cg, uint32_t mod, uint32_t reg,
-                     uint32_t rm) {
+static void cg_modrm(struct cg_state_t *cg, uint32_t mod, uint32_t reg, uint32_t rm) {
   const uint8_t data = ((mod & 3) << 6) | ((reg & 7) << 3) | (rm & 7);
   cg_emit_data(cg, &data, 1);
   // if we need a sib byte
@@ -93,8 +92,7 @@ void cg_mov_r64_i32(struct cg_state_t *cg, cg_r32_t r1, int32_t imm) {
   cg_emit_data(cg, &imm, sizeof(imm));
 }
 
-void cg_mov_r64disp_r64(struct cg_state_t *cg, cg_r64_t base, int32_t disp,
-                        cg_r64_t r1) {
+void cg_mov_r64disp_r64(struct cg_state_t *cg, cg_r64_t base, int32_t disp, cg_r64_t r1) {
   cg_rex(cg, 1, r1 >= cg_r8, 0, base >= cg_r8);
   if (disp >= -128 && disp <= 127) {
     cg_emit_data(cg, "\x89", 1);
@@ -109,8 +107,7 @@ void cg_mov_r64disp_r64(struct cg_state_t *cg, cg_r64_t base, int32_t disp,
   }
 }
 
-void cg_mov_r64_r64disp(struct cg_state_t *cg, cg_r64_t base,
-                        cg_r64_t r1, int32_t disp) {
+void cg_mov_r64_r64disp(struct cg_state_t *cg, cg_r64_t base, cg_r64_t r1, int32_t disp) {
   cg_rex(cg, 1, base >= cg_r8, 0, r1 >= cg_r8);
   if (disp >= -128 && disp <= 127) {
     cg_emit_data(cg, "\x8b", 1);
@@ -129,8 +126,7 @@ void cg_ret(struct cg_state_t *cg) {
   cg_emit_data(cg, "\xc3", 1);
 }
 
-void cg_mov_r32_r64disp(struct cg_state_t *cg, cg_r32_t r1, cg_r64_t base,
-                        int32_t disp) {
+void cg_mov_r32_r64disp(struct cg_state_t *cg, cg_r32_t r1, cg_r64_t base, int32_t disp) {
   assert(r1   == (r1   & 0x7));
   assert(base == (base & 0x7));
   if (disp >= -128 && disp <= 127) {
@@ -146,8 +142,7 @@ void cg_mov_r32_r64disp(struct cg_state_t *cg, cg_r32_t r1, cg_r64_t base,
   }
 }
 
-void cg_mov_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t disp,
-                        cg_r32_t r1) {
+void cg_mov_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t disp, cg_r32_t r1) {
   assert(r1   == (r1   & 0x7));
   assert(base == (base & 0x7));
   if (disp >= -128 && disp <= 127) {
@@ -486,87 +481,65 @@ void cg_init(struct cg_state_t *cg, uint8_t *start, uint8_t *end) {
 }
 
 void cg_movss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x10", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_movss_r64disp_xmm(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_xmm_t dst) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x11", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_addss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x58", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_subss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x5C", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_mulss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x59", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_divss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x5E", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_sqrtss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
   cg_emit_data(cg, "\xf3\x0f\x51", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_cvttss2si_r32_r64disp(struct cg_state_t *cg, cg_r32_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
-  assert(dst == cg_eax); // for now
   cg_emit_data(cg, "\xf3\x0f\x2C", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
-void cg_cvtsi2ss_r64disp_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
-  assert(base == cg_rsi); // for now
-  assert(dst == cg_xmm0); // for now
+void cg_cvtsi2ss_xmm_r64disp(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base, int32_t offset) {
   cg_emit_data(cg, "\xf3\x0f\x2A", 3);
-  const uint8_t op = 0x86 | ((dst & 7) << 3);
-  cg_emit_data(cg, &op, 1);
+  cg_modrm(cg, 2, dst, base);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
 
 void cg_mov_r32_xmm(struct cg_state_t *cg, cg_r32_t dst, cg_xmm_t src) {
-  assert(dst == cg_eax);  // for now
-  assert(src == cg_xmm0); // for now
-  cg_emit_data(cg, "\x66\x0F\x7E\xC0", 4);
+  cg_emit_data(cg, "\x66\x0F\x7E", 3);
+  cg_modrm(cg, 3, src, dst);
 }
 
 void cg_mov_xmm_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r32_t src) {
-  assert(dst == cg_eax);  // for now
-  assert(src == cg_xmm0); // for now
-  cg_emit_data(cg, "\x66\x0F\x6E\xC0", 4);
+  cg_emit_data(cg, "\x66\x0F\x6E", 3);
+  cg_modrm(cg, 3, dst, src);
 }

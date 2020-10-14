@@ -1114,7 +1114,7 @@ static bool op_fp(struct riscv_t *rv,
       // note: these instructions are affectively the same for us currently
     case 0b00000:  // FCVT.S.W
     case 0b00001:  // FCVT.S.WU
-      cg_cvtsi2ss_r64disp_r32(cg, cg_xmm0, cg_rsi, rv_offset(rv, X[rs1]));
+      cg_cvtsi2ss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, X[rs1]));
       cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
       break;
     default:
