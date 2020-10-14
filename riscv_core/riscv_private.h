@@ -273,9 +273,6 @@ static inline uint32_t calc_fclass(uint32_t f) {
   return out;
 }
 
-bool rv_init_jit(struct riscv_t *rv);
-bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target);
-
 void rv_except_inst_misaligned(struct riscv_t *rv, uint32_t old_pc);
 void rv_except_load_misaligned(struct riscv_t *rv, uint32_t addr);
 void rv_except_store_misaligned(struct riscv_t *rv, uint32_t addr);
@@ -284,3 +281,5 @@ void rv_except_illegal_inst(struct riscv_t *rv);
 uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val);
 uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val);
 uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val);
+
+bool rv_init_jit(struct riscv_t *rv);

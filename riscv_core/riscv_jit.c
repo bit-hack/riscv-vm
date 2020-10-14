@@ -1179,8 +1179,8 @@ static bool op_madd(struct riscv_t *rv,
 }
 
 static bool op_msub(struct riscv_t *rv,
-  uint32_t inst,
-  struct block_t *block) {
+                    uint32_t inst,
+                    struct block_t *block) {
 
   struct cg_state_t *cg = &block->cg;
 
@@ -1203,12 +1203,84 @@ static bool op_msub(struct riscv_t *rv,
   // cant branch
   return true;
 }
+
+static bool op_nmadd(struct riscv_t *rv,
+                     uint32_t inst,
+                     struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd = dec_rd(inst);
+  const uint32_t rm = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+
+  // compute
+  // rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) - rv->F[rs3];
+
+  // multiply
+  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+  // negate
+  cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
+  cg_xor_r32_i32(cg, cg_eax, 0x80000000);
+  cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
+  // subtract
+  cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  // store
+  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+  // cant branch
+  return true;
+}
+
+static bool op_nmsub(struct riscv_t *rv,
+                    uint32_t inst,
+                    struct block_t *block) {
+
+  struct cg_state_t *cg = &block->cg;
+
+  const uint32_t rd = dec_rd(inst);
+  const uint32_t rm = dec_funct3(inst);      // todo
+  const uint32_t rs1 = dec_rs1(inst);
+  const uint32_t rs2 = dec_rs2(inst);
+  const uint32_t fmt = dec_r4type_fmt(inst);  // unused
+  const uint32_t rs3 = dec_r4type_rs3(inst);
+
+  // compute
+  // rv->F[rd] = rv->F[rs3] - (rv->F[rs1] * rv->F[rs2]);
+
+  // multiply
+  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+  // negate
+  cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
+  cg_xor_r32_i32(cg, cg_eax, 0x80000000);
+  cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
+  // add
+  cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  // store
+  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+
+  // step over instruction
+  block->instructions += 1;
+  block->pc_end += 4;
+  // cant branch
+  return true;
+}
 #else
 #define op_load_fp  NULL
 #define op_store_fp NULL
 #define op_fp       NULL
 #define op_madd     NULL
 #define op_msub     NULL
+#define op_nmadd    NULL
+#define op_nmsub    NULL
 #endif
 
 // opcode handler type
@@ -1221,7 +1293,7 @@ static const opcode_t opcodes[] = {
 //  000        001          010       011          100        101       110   111
     op_load,   op_load_fp,  NULL,     NULL,        op_op_imm, op_auipc, NULL, NULL, // 00
     op_store,  op_store_fp, NULL,     NULL,        op_op,     op_lui,   NULL, NULL, // 01
-    op_madd,   op_msub,     NULL,     NULL,        op_fp,     NULL,     NULL, NULL, // 10
+    op_madd,   op_msub,     op_nmsub, op_nmadd,    op_fp,     NULL,     NULL, NULL, // 10
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
@@ -1284,11 +1356,14 @@ struct block_t *block_find_or_translate(struct riscv_t *rv,
   return next;
 }
 
-bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
+void rv_step(struct riscv_t *rv, int32_t cycles) {
 
   // find or translate a block for our starting PC
   struct block_t *block = block_find_or_translate(rv, NULL);
   assert(block);
+
+  const uint64_t cycles_start = rv->csr_cycle;
+  const uint64_t cycles_target = rv->csr_cycle + cycles;
 
   // loop until we hit out cycle target
   while (rv->csr_cycle < cycles_target && !rv->halt) {
@@ -1320,12 +1395,9 @@ bool rv_step_jit(struct riscv_t *rv, const uint64_t cycles_target) {
     // if this block has no instructions we cant make forward progress so
     // must fallback to instruction emulation
     if (!block->instructions) {
-      return false;
+      assert(!"unable to execute empty block");
     }
   }
-
-  // hit our cycle target
-  return true;
 }
 
 bool rv_init_jit(struct riscv_t *rv) {

@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "riscv.h"
 #include "riscv_private.h"
@@ -184,4 +186,53 @@ uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
     *c &= ~val;
   }
   return out;
+}
+
+struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
+  assert(io);
+  struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
+  memset(rv, 0, sizeof(struct riscv_t));
+  // copy over the IO interface
+  memcpy(&rv->io, io, sizeof(struct riscv_io_t));
+  // copy over the userdata
+  rv->userdata = userdata;
+  // reset
+  rv_reset(rv, 0u);
+
+  // initalize jit engine
+  rv_init_jit(rv);
+
+  return rv;
+}
+
+void rv_halt(struct riscv_t *rv) {
+  rv->halt = true;
+}
+
+bool rv_has_halted(struct riscv_t *rv) {
+  return rv->halt;
+}
+
+void rv_delete(struct riscv_t *rv) {
+  assert(rv);
+  free(rv);
+  return;
+}
+
+void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
+  assert(rv);
+  memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
+  // set the reset address
+  rv->PC = pc;
+  // set the default stack pointer
+  rv->X[rv_reg_sp] = DEFAULT_STACK_ADDR;
+  // reset the csrs
+  rv->csr_cycle = 0;
+  rv->csr_mstatus = 0;
+  // reset float registers
+#if RISCV_VM_SUPPORT_RV32F
+  memset(rv->F, 0, sizeof(float) * RV_NUM_REGS);
+  rv->csr_fcsr = 0;
+#endif
+  rv->halt = false;
 }

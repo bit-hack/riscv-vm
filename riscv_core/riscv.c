@@ -854,26 +854,7 @@ static const opcode_t opcodes[] = {
     op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
-struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
-  assert(io);
-  struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
-  memset(rv, 0, sizeof(struct riscv_t));
-  // copy over the IO interface
-  memcpy(&rv->io, io, sizeof(struct riscv_io_t));
-  // copy over the userdata
-  rv->userdata = userdata;
-  // reset
-  rv_reset(rv, 0u);
-
-#if RISCV_VM_X64_JIT
-  // initalize jit engine
-  rv_init_jit(rv);
-#endif
-
-  return rv;
-}
-
-void rv_step_nojit(struct riscv_t *rv, int32_t cycles) {
+void rv_step(struct riscv_t *rv, int32_t cycles) {
   assert(rv);
 
   const uint64_t cycles_start = rv->csr_cycle;
@@ -895,74 +876,8 @@ void rv_step_nojit(struct riscv_t *rv, int32_t cycles) {
   }
 }
 
-#if RISCV_VM_X64_JIT
-void rv_step(struct riscv_t *rv, int32_t cycles) {
-  assert(rv);
-
-  const uint64_t cycles_start = rv->csr_cycle;
-  const uint64_t cycles_target = rv->csr_cycle + cycles;
-
-  while (rv->csr_cycle < cycles_target && !rv->halt) {
-
-    // ask the jit engine to execute
-    if (rv_step_jit(rv, cycles_target)) {
-      continue;
-    }
-
-    // emulate until we hit a branch
-    while (rv->csr_cycle < cycles_target && !rv->halt) {
-      // fetch the next instruction
-      const uint32_t inst = rv->io.mem_ifetch(rv, rv->PC);
-      const uint32_t index = (inst & INST_6_2) >> 2;
-      // dispatch this opcode
-      const opcode_t op = opcodes[index];
-      if (!op) {
-        rv_except_illegal_inst(rv);
-        return;
-      }
-      assert(op);
-      if (!op(rv, inst)) {
-        break;
-      }
-      // increment the cycles csr
-      rv->csr_cycle++;
-    }
-  }
-}
-#else
-void rv_step(struct riscv_t *rv, int32_t cycles) {
-  rv_step_nojit(rv, cycles);
-}
-#endif
-
-void rv_delete(struct riscv_t *rv) {
-  assert(rv);
-  free(rv);
-  return;
-}
-
-void rv_reset(struct riscv_t *rv, riscv_word_t pc) {
-  assert(rv);
-  memset(rv->X, 0, sizeof(uint32_t) * RV_NUM_REGS);
-  // set the reset address
-  rv->PC = pc;
-  // set the default stack pointer
-  rv->X[rv_reg_sp] = DEFAULT_STACK_ADDR;
-  // reset the csrs
-  rv->csr_cycle = 0;
-  rv->csr_mstatus = 0;
-  // reset float registers
-#if RISCV_VM_SUPPORT_RV32F
-  memset(rv->F, 0, sizeof(float) * RV_NUM_REGS);
-  rv->csr_fcsr = 0;
-#endif
-  rv->halt = false;
-}
-
-void rv_halt(struct riscv_t *rv) {
-  rv->halt = true;
-}
-
-bool rv_has_halted(struct riscv_t *rv) {
-  return rv->halt;
+// stub function as no jit present
+bool rv_init_jit(struct riscv_t *rv) {
+  (void)rv;
+  return false;
 }

@@ -93,7 +93,7 @@ void run_and_trace(riscv_t *rv, state_t *state, elf_t &elf) {
     const char *sym = elf.find_symbol(pc);
     printf("%08x  %s\n", pc, (sym ? sym : ""));
     // step instructions
-    rv_step_nojit(rv, cycles_per_step);
+    rv_step(rv, cycles_per_step);
   }
 }
 
@@ -114,12 +114,7 @@ void run_and_show_mips(riscv_t *rv, state_t *state, elf_t &elf) {
       cycles_base = cycles;
     }
     // step instructions
-    if (g_no_jit) {
-      rv_step_nojit(rv, cycles_per_step);
-    }
-    else {
-      rv_step(rv, cycles_per_step);
-    }
+    rv_step(rv, cycles_per_step);
   }
 }
 
@@ -129,12 +124,7 @@ void run(riscv_t *rv, state_t *state, elf_t &elf) {
   // run until we see the flag that we are done
   for (; !rv_has_halted(rv);) {
     // step instructions
-    if (g_no_jit) {
-      rv_step_nojit(rv, cycles_per_step);
-    }
-    else {
-      rv_step(rv, cycles_per_step);
-    }
+    rv_step(rv, cycles_per_step);
   }
 }
 

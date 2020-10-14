@@ -558,3 +558,15 @@ void cg_cvtsi2ss_r64disp_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r64_t base,
   cg_emit_data(cg, &op, 1);
   cg_emit_data(cg, &offset, sizeof(offset));
 }
+
+void cg_mov_r32_xmm(struct cg_state_t *cg, cg_r32_t dst, cg_xmm_t src) {
+  assert(dst == cg_eax);  // for now
+  assert(src == cg_xmm0); // for now
+  cg_emit_data(cg, "\x66\x0F\x7E\xC0", 4);
+}
+
+void cg_mov_xmm_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r32_t src) {
+  assert(dst == cg_eax);  // for now
+  assert(src == cg_xmm0); // for now
+  cg_emit_data(cg, "\x66\x0F\x6E\xC0", 4);
+}

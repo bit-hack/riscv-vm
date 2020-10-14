@@ -94,7 +94,6 @@ void rv_reset(struct riscv_t *, riscv_word_t pc);
 
 // step the riscv emulator
 void rv_step(struct riscv_t *, int32_t cycles);
-void rv_step_nojit(struct riscv_t *rv, int32_t cycles);
 
 // get riscv user data bound to an emulator
 riscv_user_t rv_userdata(struct riscv_t *);
