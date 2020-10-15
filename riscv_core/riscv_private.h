@@ -92,7 +92,7 @@ struct block_t {
   // address range of the basic block
   uint32_t pc_start;
   uint32_t pc_end;
-  // next block prediction
+  // static next block prediction
   struct block_t *predict;
   // code gen structure
   struct cg_state_t cg;
@@ -286,4 +286,5 @@ uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val);
 uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val);
 uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val);
 
-bool rv_init_jit(struct riscv_t *rv);
+bool rv_jit_init(struct riscv_t *rv);
+void rv_jit_dump_stats(struct riscv_t *rv);

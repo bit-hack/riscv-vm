@@ -81,22 +81,6 @@ static void *sys_alloc_exec_mem(uint32_t size) {
 // byte offset from rv structure address to member address
 #define rv_offset(RV, MEMBER) ((int32_t)(((uintptr_t)&(RV->MEMBER)) - (uintptr_t)RV))
 
-static void set_pc(struct block_t *block, struct riscv_t *rv, cg_r32_t reg) {
-
-  struct cg_state_t *cg = &block->cg;
-
-  const int32_t offset = rv_offset(rv, PC);
-  cg_mov_r64disp_r32(cg, cg_rsi, offset, reg);
-}
-
-static void get_pc(struct block_t *block, struct riscv_t *rv, cg_r32_t reg) {
-
-  struct cg_state_t *cg = &block->cg;
-
-  const int32_t offset = rv_offset(rv, PC);
-  cg_mov_r32_r64disp(cg, reg, cg_rsi, offset);
-}
-
 static void get_reg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, uint32_t src) {
 
   struct cg_state_t *cg = &block->cg;
@@ -311,52 +295,80 @@ static bool op_op_imm(struct riscv_t *rv,
     return true;
   }
 
-  // eax = rv->X[rs1]
-  get_reg(block, rv, cg_eax, rs1);
+  bool handled = false;
 
-  // dispatch operation type
-  switch (funct3) {
-  case 0: // ADDI
-    cg_add_r32_i32(cg, cg_eax, imm);
-    break;
-  case 1: // SLLI
-    cg_shl_r32_i8(cg, cg_eax, imm & 0x1f);
-    break;
-  case 2: // SLTI
-    cg_cmp_r32_i32(cg, cg_eax, imm);
-    cg_setcc_r8(cg, cg_cc_lt, cg_dl);
-    cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    break;
-  case 3: // SLTIU
-    cg_cmp_r32_i32(cg, cg_eax, imm);
-    cg_setcc_r8(cg, cg_cc_c, cg_dl);
-    cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    break;
-  case 4: // XORI
-    cg_xor_r32_i32(cg, cg_eax, imm);
-    break;
-  case 5:
-    if (imm & ~0x1f) {
-      // SRAI
-      cg_sar_r32_i8(cg, cg_eax, imm & 0x1f);
+  // do in place operations
+  if (rd == rs1) {
+    handled = true;
+    // dispatch operation type
+    switch (funct3) {
+    case 0: // ADDI
+      cg_add_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      break;
+    case 4: // XORI
+      cg_xor_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      break;
+    case 6: // ORI
+      cg_or_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      break;
+    case 7: // ANDI
+      cg_and_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      break;
+    default:
+      handled = false;
     }
-    else {
-      // SRLI
-      cg_shr_r32_i8(cg, cg_eax, imm & 0x1f);
-    }
-    break;
-  case 6: // ORI
-    cg_or_r32_i32(cg, cg_eax, imm);
-    break;
-  case 7: // ANDI
-    cg_and_r32_i32(cg, cg_eax, imm);
-    break;
-  default:
-    assert(!"unreachable");
-    break;
   }
-  // rv->X[rd] = eax
-  set_reg(block, rv, rd, cg_eax);
+
+  if (!handled) {
+
+    // eax = rv->X[rs1]
+    get_reg(block, rv, cg_eax, rs1);
+
+    // dispatch operation type
+    switch (funct3) {
+    case 0: // ADDI
+      cg_add_r32_i32(cg, cg_eax, imm);
+      break;
+    case 1: // SLLI
+      cg_shl_r32_i8(cg, cg_eax, imm & 0x1f);
+      break;
+    case 2: // SLTI
+      cg_cmp_r32_i32(cg, cg_eax, imm);
+      cg_setcc_r8(cg, cg_cc_lt, cg_dl);
+      cg_movzx_r32_r8(cg, cg_eax, cg_dl);
+      break;
+    case 3: // SLTIU
+      cg_cmp_r32_i32(cg, cg_eax, imm);
+      cg_setcc_r8(cg, cg_cc_c, cg_dl);
+      cg_movzx_r32_r8(cg, cg_eax, cg_dl);
+      break;
+    case 4: // XORI
+      cg_xor_r32_i32(cg, cg_eax, imm);
+      break;
+    case 5:
+      if (imm & ~0x1f) {
+        // SRAI
+        cg_sar_r32_i8(cg, cg_eax, imm & 0x1f);
+      }
+      else {
+        // SRLI
+        cg_shr_r32_i8(cg, cg_eax, imm & 0x1f);
+      }
+      break;
+    case 6: // ORI
+      cg_or_r32_i32(cg, cg_eax, imm);
+      break;
+    case 7: // ANDI
+      cg_and_r32_i32(cg, cg_eax, imm);
+      break;
+    default:
+      assert(!"unreachable");
+      break;
+    }
+    // rv->X[rd] = eax
+    set_reg(block, rv, rd, cg_eax);
+  }
+
   // step over instruction
   block->pc_end += 4;
   block->instructions += 1;
@@ -386,8 +398,7 @@ static bool op_auipc(struct riscv_t *rv,
   }
 
   // rv->X[rd] = imm + rv->PC;
-  cg_mov_r32_i32(cg, cg_eax, pc + imm);
-  set_reg(block, rv, rd, cg_eax);
+  cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + imm);
 
   // step over instruction
   block->pc_end += 4;
@@ -637,8 +648,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       return true;
     default:
       // cant translate this instruction - terminate block
-      cg_mov_r32_i32(cg, cg_eax, pc);
-      set_pc(block, rv, cg_eax);
+      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc);
       return false;
     }
     break;
@@ -721,7 +731,7 @@ static bool op_branch(struct riscv_t *rv,
     assert(!"unreachable");
   }
   // load PC with the target
-  set_pc(block, rv, cg_eax);
+  cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -745,12 +755,11 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   get_reg(block, rv, cg_eax, rs1);
   cg_add_r32_i32(cg, cg_eax, imm);
   cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
-  set_pc(block, rv, cg_eax);
+  cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
 
   // link
   if (rd != rv_reg_zero) {
-    cg_mov_r32_i32(cg, cg_eax, pc + 4);
-    set_reg(block, rv, rd, cg_eax);
+    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + 4);
   }
 
   // step over instruction
@@ -770,23 +779,35 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t rd  = dec_rd(inst);
   const int32_t rel = dec_jtype_imm(inst);
 
-  // jump
-  // note: rel is aligned to a two byte boundary so we dont needs to do any
-  //       masking here.
-  cg_mov_r32_i32(cg, cg_eax, pc + rel);
-  set_pc(block, rv, cg_eax);
-
-  // link
-  if (rd != rv_reg_zero) {
-    cg_mov_r32_i32(cg, cg_eax, pc + 4);
-    set_reg(block, rv, rd, cg_eax);
+  // note: this does not give the speed boost I was expecting to see.  It makes
+  //       almost no different to the MIPS in practice.
+#if 1
+  if (rd == rv_reg_zero) {
+    block->instructions += 1;
+    block->pc_end = pc + rel;
+    // the jump is not a dynamic branch (we can continue)
+    return true;
   }
+  else
+#endif
+  {
 
-  // step over instruction
-  block->instructions += 1;
-  block->pc_end += 4;
-  // could branch
-  return false;
+    // jump
+    // note: rel is aligned to a two byte boundary so we dont needs to do any
+    //       masking here.
+    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + rel);
+
+    if (rd != rv_reg_zero) {
+      // link
+      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + 4);
+    }
+
+    // step over instruction
+    block->instructions += 1;
+    block->pc_end += 4;
+    // could branch
+    return false;
+  }
 }
 
 static void handle_op_system(struct riscv_t *rv,
@@ -854,8 +875,7 @@ static bool op_system(struct riscv_t *rv,
   int32_t offset;
 
   // set the next PC address
-  cg_mov_r32_i32(cg, cg_eax, pc + 4);
-  set_pc(block, rv, cg_eax);
+  cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + 4);
 
   // dispatch by func3 field
   switch (funct3) {
@@ -892,10 +912,7 @@ static bool op_system(struct riscv_t *rv,
     return true;
 #endif  // RISCV_VM_SUPPORT_Zicsr
   default:
-    // cant translate this instruction - terminate block
-    cg_mov_r32_i32(cg, cg_eax, pc);
-    set_pc(block, rv, cg_eax);
-    return false;
+    assert(!"unreachable");
   }
 
   // step over instruction
@@ -1087,10 +1104,7 @@ static bool op_fp(struct riscv_t *rv,
       cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
       break;
     default:
-      // unsupported instruction
-      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
-      set_pc(block, rv, cg_eax);
-      return false;
+      assert(!"unreachable");
     }
     break;
   case 0b1110000:
@@ -1109,9 +1123,7 @@ static bool op_fp(struct riscv_t *rv,
       // cant branch
       return true;
     default:
-      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
-      set_pc(block, rv, cg_eax);
-      return false;
+      assert(!"unreachable");
     }
     break;
   case 0b1101000:
@@ -1123,9 +1135,7 @@ static bool op_fp(struct riscv_t *rv,
       cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
       break;
     default:
-      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
-      set_pc(block, rv, cg_eax);
-      return false;
+      assert(!"unreachable");
     }
     break;
   case 0b1111000:  // FMV.W.X
@@ -1144,10 +1154,7 @@ static bool op_fp(struct riscv_t *rv,
     // cant branch
     return true;
   default:
-    // unsupported instruction
-    cg_mov_r32_i32(cg, cg_eax, block->pc_end);
-    set_pc(block, rv, cg_eax);
-    return false;
+    assert(!"unreachable");
   }
 
   // step over instruction
@@ -1323,11 +1330,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     // find translation function
     const opcode_t op = opcodes[index];
     if (!op) {
-      // we dont have a handler for this instruction so end basic block
-      // make sure PC gets updated
-      cg_mov_r32_i32(cg, cg_eax, block->pc_end);
-      set_pc(block, rv, cg_eax);
-      break;
+      assert(!"unreachable");
     }
     if (!op(rv, inst, block)) {
       break;
@@ -1373,9 +1376,11 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
   // loop until we hit out cycle target
   while (rv->csr_cycle < cycles_target && !rv->halt) {
 
+    const uint32_t pc = rv->PC;
+
     // try to predict the next block
     // note: block predition gives us ~100 MIPS boost.
-    if (block->predict && block->predict->pc_start == rv->PC) {
+    if (block->predict && block->predict->pc_start == pc) {
       block = block->predict;
     }
     else {
@@ -1408,7 +1413,7 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
   }
 }
 
-bool rv_init_jit(struct riscv_t *rv) {
+bool rv_jit_init(struct riscv_t *rv) {
 
   struct riscv_jit_t *jit = &rv->jit;
 
@@ -1434,4 +1439,29 @@ bool rv_init_jit(struct riscv_t *rv) {
   jit->handle_op_system = handle_op_system;
 
   return true;
+}
+
+void rv_jit_dump_stats(struct riscv_t *rv) {
+#if 1
+  struct riscv_jit_t *jit = &rv->jit;
+
+  uint32_t num_blocks = 0;
+  uint32_t code_size = (uint32_t)(jit->head - jit->start);
+
+  for (uint32_t i = 0; i < jit->block_map_size; ++i) {
+    struct block_t *block = jit->block_map[i];
+    if (!block) {
+      continue;
+    }
+    ++num_blocks;
+
+    block_dump(block, stdout);
+#if RISCV_JIT_PROFILE
+    fprintf(stdout, "Hit count: %u\n", block->hit_count);
+#endif
+  }
+
+  fprintf(stdout, "Number of blocks: %u\n", num_blocks);
+  fprintf(stdout, "Code size: %u\n", code_size);
+#endif
 }

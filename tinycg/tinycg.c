@@ -498,8 +498,7 @@ void cg_setcc_r8(struct cg_state_t *cg, cg_cc_t cc, cg_r8_t r1) {
   cg_modrm(cg, 3, 0, r1);
 }
 
-void cg_cmov_r32_r32(struct cg_state_t *cg, cg_cc_t cc, cg_r32_t r1,
-                     cg_r32_t r2) {
+void cg_cmov_r32_r32(struct cg_state_t *cg, cg_cc_t cc, cg_r32_t r1, cg_r32_t r2) {
   cg_emit_data(cg, "\x0f", 1);
   const uint8_t op = 0x40 | (cc & 0xf);
   cg_emit_data(cg, &op, 1);
@@ -579,4 +578,50 @@ void cg_mov_r32_xmm(struct cg_state_t *cg, cg_r32_t dst, cg_xmm_t src) {
 void cg_mov_xmm_r32(struct cg_state_t *cg, cg_xmm_t dst, cg_r32_t src) {
   cg_emit_data(cg, "\x66\x0F\x6E", 3);
   cg_modrm(cg, 3, dst, src);
+}
+
+static void cg_sub_r64disp_i32_generic(struct cg_state_t *cg, uint8_t op, cg_r64_t base, int32_t offset, int32_t imm) {
+  assert(base == (base & 7));
+  if (imm >= -128 && imm <= 127) {
+    cg_emit_data(cg, "\x83", 1);
+  }
+  else {
+    cg_emit_data(cg, "\x81", 1);
+  }
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, op, base);
+    const int8_t offset8 = offset;
+    cg_emit_data(cg, &offset8, sizeof(offset8));
+  }
+  else {
+    cg_modrm(cg, 2, op, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+  if (imm >= -128 && imm <= 127) {
+    const int8_t imm8 = imm;
+    cg_emit_data(cg, &imm8, sizeof(imm8));
+  }
+  else {
+    cg_emit_data(cg, &imm, sizeof(imm));
+  }
+}
+
+void cg_add_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  cg_sub_r64disp_i32_generic(cg, 0, base, offset, imm);
+}
+
+void cg_sub_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  cg_sub_r64disp_i32_generic(cg, 5, base, offset, imm);
+}
+
+void cg_and_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  cg_sub_r64disp_i32_generic(cg, 4, base, offset, imm);
+}
+
+void cg_or_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  cg_sub_r64disp_i32_generic(cg, 1, base, offset, imm);
+}
+
+void cg_xor_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  cg_sub_r64disp_i32_generic(cg, 6, base, offset, imm);
 }

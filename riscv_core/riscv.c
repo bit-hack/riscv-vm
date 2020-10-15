@@ -877,7 +877,12 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
 }
 
 // stub function as no jit present
-bool rv_init_jit(struct riscv_t *rv) {
+bool rv_jit_init(struct riscv_t *rv) {
   (void)rv;
   return false;
+}
+
+// stub function as no jit present
+void rv_jit_dump_stats(struct riscv_t *rv) {
+  (void)rv;
 }
