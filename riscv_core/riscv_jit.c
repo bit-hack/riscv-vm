@@ -45,6 +45,11 @@
 //    linux   - no shadow space needed.
 
 
+enum {
+  reg_rv = cg_rsi
+};
+
+
 // total size of the code block
 static const uint32_t code_size = 1024 * 1024 * 8;
 
@@ -90,7 +95,7 @@ static void get_reg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, uin
   }
   else {
     const int32_t offset = rv_offset(rv, X[src]);
-    cg_mov_r32_r64disp(cg, dst, cg_rsi, offset);
+    cg_mov_r32_r64disp(cg, dst, reg_rv, offset);
   }
 }
 
@@ -98,7 +103,7 @@ static void get_freg(struct block_t *block, struct riscv_t *rv, cg_r32_t dst, ui
 
   struct cg_state_t *cg = &block->cg;
   const int32_t offset = rv_offset(rv, F[src]);
-  cg_mov_r32_r64disp(cg, dst, cg_rsi, offset);
+  cg_mov_r32_r64disp(cg, dst, reg_rv, offset);
 }
 
 static void set_reg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_r32_t src) {
@@ -107,7 +112,7 @@ static void set_reg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg_
 
   if (dst != rv_reg_zero) {
     const int32_t offset = rv_offset(rv, X[dst]);
-    cg_mov_r64disp_r32(cg, cg_rsi, offset, src);
+    cg_mov_r64disp_r32(cg, reg_rv, offset, src);
   }
 }
 
@@ -116,7 +121,7 @@ static void set_freg(struct block_t *block, struct riscv_t *rv, uint32_t dst, cg
   struct cg_state_t *cg = &block->cg;
 
   const int32_t offset = rv_offset(rv, F[dst]);
-  cg_mov_r64disp_r32(cg, cg_rsi, offset, src);
+  cg_mov_r64disp_r32(cg, reg_rv, offset, src);
 }
 
 static void gen_prologue(struct block_t *block, struct riscv_t *rv) {
@@ -126,15 +131,15 @@ static void gen_prologue(struct block_t *block, struct riscv_t *rv) {
   cg_mov_r64_r64(cg, cg_rbp, cg_rsp);
   cg_sub_r64_i32(cg, cg_rsp, 64);
   // save rsi
-  cg_mov_r64disp_r64(cg, cg_rsp, 32, cg_rsi);
+  cg_mov_r64disp_r64(cg, cg_rsp, 32, reg_rv);
   // move rv struct pointer into rsi
-  cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+  cg_mov_r64_r64(cg, reg_rv, cg_rcx);
 }
 
 static void gen_epilogue(struct block_t *block, struct riscv_t *rv) {
   struct cg_state_t *cg = &block->cg;
   // restore rsi
-  cg_mov_r64_r64disp(cg, cg_rsi, cg_rsp, 32);
+  cg_mov_r64_r64disp(cg, reg_rv, cg_rsp, 32);
   // leave stack frame
   cg_mov_r64_r64(cg, cg_rsp, cg_rbp);
   cg_pop_r64(cg, cg_rbp);
@@ -231,7 +236,7 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   }
 
   // arg1 - rv
-  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  cg_mov_r64_r64(cg, cg_rcx, reg_rv);
   // arg2 - address
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
@@ -242,25 +247,25 @@ static bool op_load(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   switch (funct3) {
   case 0: // LB
     offset = rv_offset(rv, io.mem_read_b);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     cg_movsx_r32_r8(cg, cg_eax, cg_al);
     break;
   case 1: // LH
     offset = rv_offset(rv, io.mem_read_s);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     cg_movsx_r32_r16(cg, cg_eax, cg_ax);
     break;
   case 2: // LW
     offset = rv_offset(rv, io.mem_read_w);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   case 4: // LBU
     offset = rv_offset(rv, io.mem_read_b);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   case 5: // LHU
     offset = rv_offset(rv, io.mem_read_s);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   default:
     assert(!"unreachable");
@@ -303,29 +308,29 @@ static bool op_op_imm(struct riscv_t *rv,
     // dispatch operation type
     switch (funct3) {
     case 0: // ADDI
-      cg_add_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      cg_add_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), imm);
       break;
     case 1: // SLLI
-      cg_shl_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+      cg_shl_r64disp_i8(cg, reg_rv, rv_offset(rv, X[rd]), imm & 0x1f);
       break;
     case 4: // XORI
-      cg_xor_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      cg_xor_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), imm);
       break;
     case 5:
       if (imm & ~0x1f) {
         // SRAI
-        cg_sar_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+        cg_sar_r64disp_i8(cg, reg_rv, rv_offset(rv, X[rd]), imm & 0x1f);
       }
       else {
         // SRLI
-        cg_shr_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+        cg_shr_r64disp_i8(cg, reg_rv, rv_offset(rv, X[rd]), imm & 0x1f);
       }
       break;
     case 6: // ORI
-      cg_or_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      cg_or_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), imm);
       break;
     case 7: // ANDI
-      cg_and_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      cg_and_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), imm);
       break;
     default:
       handled = false;
@@ -411,7 +416,7 @@ static bool op_auipc(struct riscv_t *rv,
   }
 
   // rv->X[rd] = imm + rv->PC;
-  cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + imm);
+  cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), pc + imm);
 
   // step over instruction
   block->pc_end += 4;
@@ -433,12 +438,12 @@ static bool op_store(struct riscv_t *rv,
   const uint32_t funct3 = dec_funct3(inst);
 
   // arg1 - rv
-  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  cg_mov_r64_r64(cg, cg_rcx, reg_rv);
   // arg2 - addr
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
   // arg3 - data
-  cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, X[rs2]));
+  cg_movsx_r64_r64disp(cg, cg_r8, reg_rv, rv_offset(rv, X[rs2]));
 
   int32_t offset;
 
@@ -447,17 +452,17 @@ static bool op_store(struct riscv_t *rv,
   case 0: // SB
     // rv->io.mem_write_b(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_b);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   case 1: // SH
     // rv->io.mem_write_s(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_s);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   case 2: // SW
     // rv->io.mem_write_w(rv, addr, data);
     offset = rv_offset(rv, io.mem_write_w);
-    cg_call_r64disp(cg, cg_rsi, offset);
+    cg_call_r64disp(cg, reg_rv, offset);
     break;
   default:
     assert(!"unreachable");
@@ -651,9 +656,9 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     case 0b110: // REM
     case 0b111: // REMU
       // offload to a specific instruction handler
-      cg_mov_r64_r64(cg, cg_rcx, cg_rsi);  // arg1 - rv
+      cg_mov_r64_r64(cg, cg_rcx, reg_rv);  // arg1 - rv
       cg_mov_r32_i32(cg, cg_edx, inst);    // arg2 - inst
-      cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_op));
+      cg_call_r64disp(cg, reg_rv, rv_offset(rv, jit.handle_op_op));
       // step over instruction
       block->instructions += 1;
       block->pc_end += 4;
@@ -661,7 +666,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       return true;
     default:
       // cant translate this instruction - terminate block
-      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc);
+      cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, PC), pc);
       return false;
     }
     break;
@@ -690,7 +695,7 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   // rv->X[rd] = val;
   if (rd != rv_reg_zero) {
     const int32_t offset = rv_offset(rv, X[rd]);
-    cg_mov_r64disp_i32(cg, cg_rsi, offset, val);
+    cg_mov_r64disp_i32(cg, reg_rv, offset, val);
   }
   // step over instruction
   block->instructions += 1;
@@ -714,8 +719,8 @@ static bool op_branch(struct riscv_t *rv,
   const uint32_t rs2   = dec_rs2(inst);
   // perform the compare
   get_reg(block, rv, cg_eax, rs1);
-  get_reg(block, rv, cg_ecx, rs2);
-  cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
+  get_reg(block, rv, cg_edx, rs2);
+  cg_cmp_r32_r32(cg, cg_eax, cg_edx);
   // load both targets
   cg_mov_r32_i32(cg, cg_eax, pc + 4);
   cg_mov_r32_i32(cg, cg_edx, pc + imm);
@@ -744,7 +749,7 @@ static bool op_branch(struct riscv_t *rv,
     assert(!"unreachable");
   }
   // load PC with the target
-  cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
+  cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, PC), cg_eax);
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -768,11 +773,11 @@ static bool op_jalr(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   get_reg(block, rv, cg_eax, rs1);
   cg_add_r32_i32(cg, cg_eax, imm);
   cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
-  cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
+  cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, PC), cg_eax);
 
   // link
   if (rd != rv_reg_zero) {
-    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + 4);
+    cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), pc + 4);
   }
 
   // step over instruction
@@ -807,11 +812,11 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     // jump
     // note: rel is aligned to a two byte boundary so we dont needs to do any
     //       masking here.
-    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + rel);
+    cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, PC), pc + rel);
 
     if (rd != rv_reg_zero) {
       // link
-      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), pc + 4);
+      cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), pc + 4);
     }
 
     // step over instruction
@@ -882,12 +887,12 @@ static bool op_system(struct riscv_t *rv,
   const uint32_t rd     = dec_rd(inst);
 
   // arg1 - rv
-  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  cg_mov_r64_r64(cg, cg_rcx, reg_rv);
 
   int32_t offset;
 
   // set the next PC address
-  cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + 4);
+  cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, PC), pc + 4);
 
   // dispatch by func3 field
   switch (funct3) {
@@ -896,11 +901,11 @@ static bool op_system(struct riscv_t *rv,
     switch (imm) {
     case 0: // ECALL
       offset = rv_offset(rv, io.on_ecall);
-      cg_call_r64disp(cg, cg_rsi, offset);
+      cg_call_r64disp(cg, reg_rv, offset);
       break;
     case 1: // EBREAK
       offset = rv_offset(rv, io.on_ebreak);
-      cg_call_r64disp(cg, cg_rsi, offset);
+      cg_call_r64disp(cg, reg_rv, offset);
       break;
     default:
       assert(!"unreachable");
@@ -914,9 +919,9 @@ static bool op_system(struct riscv_t *rv,
   case 6: // CSRRSI
   case 7: // CSRRCI
       // offload to a specific instruction handler
-    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);  // arg1 - rv
+    cg_mov_r64_r64(cg, cg_rcx, reg_rv);  // arg1 - rv
     cg_mov_r32_i32(cg, cg_edx, inst);    // arg2 - inst
-    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_system));
+    cg_call_r64disp(cg, reg_rv, rv_offset(rv, jit.handle_op_system));
     // step over instruction
     block->instructions += 1;
     block->pc_end += 4;
@@ -947,13 +952,13 @@ static bool op_load_fp(struct riscv_t *rv,
   const int32_t  imm = dec_itype_imm(inst);
 
   // arg1 - rv
-  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  cg_mov_r64_r64(cg, cg_rcx, reg_rv);
   // arg2 - address
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
 
   const int32_t offset = rv_offset(rv, io.mem_read_w);
-  cg_call_r64disp(cg, cg_rsi, offset);
+  cg_call_r64disp(cg, reg_rv, offset);
 
   set_freg(block, rv, rd, cg_eax);
 
@@ -976,15 +981,15 @@ static bool op_store_fp(struct riscv_t *rv,
   const int32_t  imm = dec_stype_imm(inst);
 
   // arg1 - rv
-  cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
+  cg_mov_r64_r64(cg, cg_rcx, reg_rv);
   // arg2 - address
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
   // arg3 - value
-  cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, F[rs2]));
+  cg_movsx_r64_r64disp(cg, cg_r8, reg_rv, rv_offset(rv, F[rs2]));
 
   const int32_t offset = rv_offset(rv, io.mem_write_w);
-  cg_call_r64disp(cg, cg_rsi, offset);
+  cg_call_r64disp(cg, reg_rv, offset);
 
   // step over instruction
   block->instructions += 1;
@@ -1084,36 +1089,36 @@ static bool op_fp(struct riscv_t *rv,
   // dispatch based on func7 (low 2 bits are width)
   switch (funct7) {
   case 0b0000000:  // FADD
-    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-    cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+    cg_addss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
     break;
   case 0b0000100:  // FSUB
-    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-    cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+    cg_subss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
     break;
   case 0b0001000:  // FMUL
-    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
     break;
   case 0b0001100:  // FDIV
-    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-    cg_divss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+    cg_divss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+    cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
     break;
   case 0b0101100:  // FSQRT
-    cg_sqrtss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+    cg_sqrtss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+    cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
     break;
   case 0b1100000:
     switch (rs2) {
     // note: these instructions are effectively the same for us currently
     case 0b00000:  // FCVT.W.S
     case 0b00001:  // FCVT.WU.S
-      cg_cvttss2si_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[rs1]));
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
+      cg_cvttss2si_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, F[rs1]));
+      cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, X[rd]), cg_eax);
       break;
     default:
       assert(!"unreachable");
@@ -1122,13 +1127,13 @@ static bool op_fp(struct riscv_t *rv,
   case 0b1110000:
     switch (rm) {
     case 0b000:  // FMV.X.W
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[rs1]));
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_eax);
+      cg_mov_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, F[rs1]));
+      cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, X[rd]), cg_eax);
       break;
     case 0b001:  // FCLASS.S
-      cg_mov_r64_r64(cg, cg_rcx, cg_rsi);   // arg1 - rv
+      cg_mov_r64_r64(cg, cg_rcx, reg_rv);   // arg1 - rv
       cg_mov_r32_i32(cg, cg_edx, inst);     // arg2 - inst
-      cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_fp));
+      cg_call_r64disp(cg, reg_rv, rv_offset(rv, jit.handle_op_fp));
       // step over instruction
       block->instructions += 1;
       block->pc_end += 4;
@@ -1143,23 +1148,23 @@ static bool op_fp(struct riscv_t *rv,
       // note: these instructions are affectively the same for us currently
     case 0b00000:  // FCVT.S.W
     case 0b00001:  // FCVT.S.WU
-      cg_cvtsi2ss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, X[rs1]));
-      cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+      cg_cvtsi2ss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, X[rs1]));
+      cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
       break;
     default:
       assert(!"unreachable");
     }
     break;
   case 0b1111000:  // FMV.W.X
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[rs1]));
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[rd]), cg_eax);
+    cg_mov_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, X[rs1]));
+    cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, F[rd]), cg_eax);
     break;
   case 0b0010000: // FSGNJ.S, FSGNJN.S, FSGNJX.S
   case 0b0010100: // FMIN, FMAX
   case 0b1010000: // FEQ.S, FLT.S, FLE.S
-    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);   // arg1 - rv
+    cg_mov_r64_r64(cg, cg_rcx, reg_rv);   // arg1 - rv
     cg_mov_r32_i32(cg, cg_edx, inst);     // arg2 - inst
-    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_fp));
+    cg_call_r64disp(cg, reg_rv, rv_offset(rv, jit.handle_op_fp));
     // step over instruction
     block->instructions += 1;
     block->pc_end += 4;
@@ -1190,10 +1195,10 @@ static bool op_madd(struct riscv_t *rv,
   const uint32_t rs3 = dec_r4type_rs3(inst);
 
   // rv->F[rd] = rv->F[rs1] * rv->F[rs2] + rv->F[rs3];
-  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-  cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
-  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+  cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+  cg_addss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs3]));
+  cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
 
   // step over instruction
   block->instructions += 1;
@@ -1216,10 +1221,10 @@ static bool op_msub(struct riscv_t *rv,
   const uint32_t rs3 = dec_r4type_rs3(inst);
 
   // rv->F[rd] = rv->F[rs1] * rv->F[rs2] - rv->F[rs3];
-  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
-  cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
-  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+  cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
+  cg_subss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs3]));
+  cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
 
   // step over instruction
   block->instructions += 1;
@@ -1245,16 +1250,16 @@ static bool op_nmadd(struct riscv_t *rv,
   // rv->F[rd] = -(rv->F[rs1] * rv->F[rs2]) - rv->F[rs3];
 
   // multiply
-  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
+  cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
   cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
   // negate
   cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
   cg_xor_r32_i32(cg, cg_eax, 0x80000000);
   cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
   // subtract
-  cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  cg_subss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs3]));
   // store
-  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+  cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
 
   // step over instruction
   block->instructions += 1;
@@ -1280,16 +1285,16 @@ static bool op_nmsub(struct riscv_t *rv,
   // rv->F[rd] = rv->F[rs3] - (rv->F[rs1] * rv->F[rs2]);
 
   // multiply
-  cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs1]));
-  cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs2]));
+  cg_movss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs1]));
+  cg_mulss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs2]));
   // negate
   cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
   cg_xor_r32_i32(cg, cg_eax, 0x80000000);
   cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
   // add
-  cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[rs3]));
+  cg_addss_xmm_r64disp(cg, cg_xmm0, reg_rv, rv_offset(rv, F[rs3]));
   // store
-  cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[rd]), cg_xmm0);
+  cg_movss_r64disp_xmm(cg, reg_rv, rv_offset(rv, F[rd]), cg_xmm0);
 
   // step over instruction
   block->instructions += 1;
@@ -1467,10 +1472,12 @@ void rv_jit_dump_stats(struct riscv_t *rv) {
     }
     ++num_blocks;
 
-    block_dump(block, stdout);
+    if (block->hit_count > 1000) {
+      block_dump(block, stdout);
 #if RISCV_JIT_PROFILE
-    fprintf(stdout, "Hit count: %u\n", block->hit_count);
+      fprintf(stdout, "Hit count: %u\n", block->hit_count);
 #endif
+    }
   }
 
   fprintf(stdout, "Number of blocks: %u\n", num_blocks);
