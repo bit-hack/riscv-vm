@@ -17,6 +17,10 @@
 #include "riscv.h"
 #include "riscv_private.h"
 
+// note: one idea would be to keep track of how often a block is hit and then
+//       when inserting it into the hash map, we swap the hot block closer to
+//       its ideal hash location.  it will then have a faster lookup.
+
 // calling convention
 //
 //        windows     linux
@@ -45,7 +49,7 @@
 static const uint32_t code_size = 1024 * 1024 * 8;
 
 // total number of block map entries
-static const uint32_t map_size = 1024 * 64;
+static const uint32_t map_size = 1024 * 16;
 
 
 // flush the instruction cache for a region
@@ -170,6 +174,9 @@ static struct block_t *block_alloc(struct riscv_jit_t *jit) {
   // set the initial codegen write head
   cg_init(cg, block->code, jit->end);
   block->predict = NULL;
+#if RISCV_JIT_PROFILE
+  block->hit_count = 0;
+#endif
   return block;
 }
 
@@ -407,8 +414,7 @@ static bool op_store(struct riscv_t *rv,
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
   // arg3 - data
-  get_reg(block, rv, cg_eax, rs2);
-  cg_mov_r64_r64(cg, cg_r8, cg_rax);
+  cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, X[rs2]));
 
   int32_t offset;
 
@@ -660,8 +666,8 @@ static bool op_lui(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   const uint32_t val = dec_utype_imm(inst);
   // rv->X[rd] = val;
   if (rd != rv_reg_zero) {
-    cg_mov_r32_i32(cg, cg_eax, val);
-    set_reg(block, rv, rd, cg_eax);
+    const int32_t offset = rv_offset(rv, X[rd]);
+    cg_mov_r64disp_i32(cg, cg_rsi, offset, val);
   }
   // step over instruction
   block->instructions += 1;
@@ -946,8 +952,7 @@ static bool op_store_fp(struct riscv_t *rv,
   get_reg(block, rv, cg_edx, rs1);
   cg_add_r32_i32(cg, cg_edx, imm);
   // arg3 - value
-  get_freg(block, rv, cg_eax, rs2);
-  cg_mov_r64_r64(cg, cg_r8, cg_rax);
+  cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, F[rs2]));
 
   const int32_t offset = rv_offset(rv, io.mem_write_w);
   cg_call_r64disp(cg, cg_rsi, offset);
@@ -1385,6 +1390,9 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
 
     // call the translated block
     typedef void(*call_block_t)(struct riscv_t *);
+#if RISCV_JIT_PROFILE
+    block->hit_count++;
+#endif
     call_block_t c = (call_block_t)block->code;
     // printf("// %08x\n", rv->PC);
     c(rv);

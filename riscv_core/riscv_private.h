@@ -96,6 +96,10 @@ struct block_t {
   struct block_t *predict;
   // code gen structure
   struct cg_state_t cg;
+#if RISCV_JIT_PROFILE
+  // number of times this block is executed
+  uint32_t hit_count;
+#endif
   // start of this blocks code
   uint8_t code[];
 };
