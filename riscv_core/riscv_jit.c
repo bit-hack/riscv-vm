@@ -305,8 +305,21 @@ static bool op_op_imm(struct riscv_t *rv,
     case 0: // ADDI
       cg_add_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
       break;
+    case 1: // SLLI
+      cg_shl_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+      break;
     case 4: // XORI
       cg_xor_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
+      break;
+    case 5:
+      if (imm & ~0x1f) {
+        // SRAI
+        cg_sar_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+      }
+      else {
+        // SRLI
+        cg_shr_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[rd]), imm & 0x1f);
+      }
       break;
     case 6: // ORI
       cg_or_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[rd]), imm);
@@ -791,7 +804,6 @@ static bool op_jal(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   else
 #endif
   {
-
     // jump
     // note: rel is aligned to a two byte boundary so we dont needs to do any
     //       masking here.

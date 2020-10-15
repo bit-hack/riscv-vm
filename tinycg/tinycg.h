@@ -158,15 +158,15 @@ void cg_sub_r64disp_i32(struct cg_state_t *, cg_r64_t base, int32_t offset, int3
 
 void cg_shl_r32_i8(struct cg_state_t *, cg_r32_t r1, uint8_t imm);
 void cg_shl_r32_cl(struct cg_state_t *, cg_r32_t r1);
-//void cg_shl_r64disp_i32(struct cg_state_t *, cg_r64_t base, int32_t offset, int32_t imm);
+void cg_shl_r64disp_i8(struct cg_state_t *, cg_r64_t base, int32_t offset, uint8_t imm);
 
 void cg_sar_r32_i8(struct cg_state_t *, cg_r32_t r1, uint8_t imm);
 void cg_sar_r32_cl(struct cg_state_t *, cg_r32_t r1);
-//void cg_sar_r64disp_i32(struct cg_state_t *, cg_r64_t base, int32_t offset, int32_t imm);
+void cg_sar_r64disp_i8(struct cg_state_t *, cg_r64_t base, int32_t offset, uint8_t imm);
 
 void cg_shr_r32_i8(struct cg_state_t *, cg_r32_t r1, uint8_t imm);
 void cg_shr_r32_cl(struct cg_state_t *, cg_r32_t r1);
-//void cg_shr_r64disp_i32(struct cg_state_t *, cg_r64_t base, int32_t offset, int32_t imm);
+void cg_shr_r64disp_i8(struct cg_state_t *, cg_r64_t base, int32_t offset, uint8_t imm);
 
 void cg_xor_r64_r64(struct cg_state_t *, cg_r64_t r1, cg_r64_t r2);
 void cg_xor_r32_i32(struct cg_state_t *, cg_r32_t r1, uint32_t imm);
