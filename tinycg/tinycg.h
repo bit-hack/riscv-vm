@@ -182,6 +182,8 @@ void cg_setcc_r8(struct cg_state_t *, cg_cc_t cc, cg_r8_t r1);
 void cg_cmp_r64_r64(struct cg_state_t *, cg_r64_t r1, cg_r64_t r2);
 void cg_cmp_r32_r32(struct cg_state_t *, cg_r32_t r1, cg_r32_t r2);
 void cg_cmp_r32_i32(struct cg_state_t *, cg_r32_t r1, uint32_t imm);
+void cg_cmp_r32_r64disp(struct cg_state_t *, cg_r32_t r1, cg_r64_t base, int32_t offset);
+void cg_cmp_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t r1);
 
 void cg_call_r64disp(struct cg_state_t *, cg_r64_t base, int32_t disp32);
 

@@ -54,7 +54,7 @@ enum {
 static const uint32_t code_size = 1024 * 1024 * 8;
 
 // total number of block map entries
-static const uint32_t map_size = 1024 * 16;
+static const uint32_t map_size = 1024 * 64;
 
 
 // flush the instruction cache for a region
@@ -719,8 +719,7 @@ static bool op_branch(struct riscv_t *rv,
   const uint32_t rs2   = dec_rs2(inst);
   // perform the compare
   get_reg(block, rv, cg_eax, rs1);
-  get_reg(block, rv, cg_edx, rs2);
-  cg_cmp_r32_r32(cg, cg_eax, cg_edx);
+  cg_cmp_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, X[rs2]));
   // load both targets
   cg_mov_r32_i32(cg, cg_eax, pc + 4);
   cg_mov_r32_i32(cg, cg_edx, pc + imm);
@@ -1472,13 +1471,13 @@ void rv_jit_dump_stats(struct riscv_t *rv) {
     }
     ++num_blocks;
 
+#if RISCV_JIT_PROFILE
     if (block->hit_count > 1000) {
       block_dump(block, stdout);
-#if RISCV_JIT_PROFILE
       fprintf(stdout, "Hit count: %u\n", block->hit_count);
-#endif
     }
-  }
+#endif
+}
 
   fprintf(stdout, "Number of blocks: %u\n", num_blocks);
   fprintf(stdout, "Code size: %u\n", code_size);
