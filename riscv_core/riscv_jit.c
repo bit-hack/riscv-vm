@@ -416,6 +416,7 @@ static bool op_auipc(struct riscv_t *rv,
   }
 
   // rv->X[rd] = imm + rv->PC;
+  assert(rd != rv_reg_zero);
   cg_mov_r64disp_i32(cg, reg_rv, rv_offset(rv, X[rd]), pc + imm);
 
   // step over instruction
@@ -587,34 +588,47 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
   case 0b0000000:
     switch (funct3) {
     case 0b000: // ADD
-      cg_add_r32_r32(cg, cg_eax, cg_ecx);
+      if (rs1 == rd) {
+        cg_add_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[rd]), cg_ecx);
+      }
+      else {
+        cg_add_r32_r32(cg, cg_eax, cg_ecx);
+        set_reg(block, rv, rd, cg_eax);
+      }
       break;
     case 0b001: // SLL
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_shl_r32_cl(cg, cg_eax);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b010: // SLT
       cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
       cg_setcc_r8(cg, cg_cc_lt, cg_dl);
       cg_movzx_r32_r8(cg, cg_eax, cg_dl);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b011: // SLTU
       cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
       cg_setcc_r8(cg, cg_cc_c, cg_dl);
       cg_movzx_r32_r8(cg, cg_eax, cg_dl);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b100: // XOR
       cg_xor_r32_r32(cg, cg_eax, cg_ecx);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b101: // SRL
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_shr_r32_cl(cg, cg_eax);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b110: // OR
       cg_or_r32_r32(cg, cg_eax, cg_ecx);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b111: // AND
       cg_and_r32_r32(cg, cg_eax, cg_ecx);
+      set_reg(block, rv, rd, cg_eax);
       break;
     default:
       assert(!"unreachable");
@@ -625,10 +639,12 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     switch (funct3) {
     case 0b000: // SUB
       cg_sub_r32_r32(cg, cg_eax, cg_ecx);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b101: // SRA
       cg_and_r8_i8(cg, cg_cl, 0x1f);
       cg_sar_r32_cl(cg, cg_eax);
+      set_reg(block, rv, rd, cg_eax);
       break;
     default:
       assert(!"unreachable");
@@ -641,14 +657,15 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     switch (funct3) {
     case 0b000: // MUL
       cg_imul_r32(cg, cg_ecx);
+      set_reg(block, rv, rd, cg_eax);
       break;
     case 0b001: // MULH
       cg_imul_r32(cg, cg_ecx);
-      cg_mov_r32_r32(cg, cg_eax, cg_edx);
+      set_reg(block, rv, rd, cg_edx);
       break;
     case 0b011: // MULHU
       cg_imul_r32(cg, cg_ecx);
-      cg_mov_r32_r32(cg, cg_eax, cg_edx);
+      set_reg(block, rv, rd, cg_edx);
       break;
     case 0b010: // MULHSU
     case 0b100: // DIV
@@ -676,8 +693,6 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
     break;
   }
 
-  // rv->X[rd] = rax
-  set_reg(block, rv, rd, cg_eax);
   // step over instruction
   block->instructions += 1;
   block->pc_end += 4;
@@ -1117,6 +1132,7 @@ static bool op_fp(struct riscv_t *rv,
     case 0b00000:  // FCVT.W.S
     case 0b00001:  // FCVT.WU.S
       cg_cvttss2si_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, F[rs1]));
+      assert(rd != rv_reg_zero);
       cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, X[rd]), cg_eax);
       break;
     default:
@@ -1127,6 +1143,7 @@ static bool op_fp(struct riscv_t *rv,
     switch (rm) {
     case 0b000:  // FMV.X.W
       cg_mov_r32_r64disp(cg, cg_eax, reg_rv, rv_offset(rv, F[rs1]));
+      assert(rd != rv_reg_zero);
       cg_mov_r64disp_r32(cg, reg_rv, rv_offset(rv, X[rd]), cg_eax);
       break;
     case 0b001:  // FCLASS.S

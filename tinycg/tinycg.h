@@ -145,6 +145,7 @@ void cg_add_r64_i32(struct cg_state_t *, cg_r64_t t1, int32_t imm);
 void cg_add_r32_i32(struct cg_state_t *, cg_r32_t r1, int32_t imm);
 void cg_add_r32_r32(struct cg_state_t *, cg_r32_t r1, cg_r32_t r2);
 void cg_add_r64disp_i32(struct cg_state_t *, cg_r64_t base, int32_t offset, int32_t imm);
+void cg_add_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t src);
 
 void cg_and_r8_i8(struct cg_state_t *, cg_r8_t r1, uint8_t imm);
 void cg_and_r32_i32(struct cg_state_t *, cg_r32_t r1, uint32_t imm);
