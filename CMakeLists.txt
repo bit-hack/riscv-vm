@@ -83,6 +83,9 @@ add_library(riscv_core ${RISCV_CORE_SRC})
 
 set(RISCV_CORE_JIT_SRC
     "riscv_core/riscv_jit.c"
+    "riscv_core/decode.h"
+    "riscv_core/decode.c"
+    "riscv_core/codegen.c"
     )
 add_library(riscv_core_jit ${RISCV_CORE_JIT_SRC})
 

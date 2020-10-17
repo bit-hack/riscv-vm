@@ -17,6 +17,9 @@
 #include "riscv.h"
 #include "riscv_private.h"
 
+#include "decode.h"
+
+
 // note: one idea would be to keep track of how often a block is hit and then
 //       when inserting it into the hash map, we swap the hot block closer to
 //       its ideal hash location.  it will then have a faster lookup.
@@ -1359,6 +1362,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   for (;;) {
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
+#if 0
     const uint32_t index = (inst & INST_6_2) >> 2;
     // find translation function
     const opcode_t op = opcodes[index];
@@ -1368,6 +1372,20 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!op(rv, inst, block)) {
       break;
     }
+#else
+    struct rv_inst_t dec;
+    uint32_t pc = block->pc_end;
+    if (!decode(inst, &dec, &pc)) {
+      assert(!"unreachable");
+    }
+    if (!codegen(&dec, cg, block->pc_end, inst)) {
+      assert(!"unreachable");
+    }
+    block->pc_end = pc;
+    if (inst_is_branch(&dec)) {
+      break;
+    }
+#endif
   }
 
   // epilogue
