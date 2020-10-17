@@ -10,17 +10,49 @@
 // byte offset from rv structure address to member address
 #define rv_offset(RV, MEMBER) ((int32_t)(((uintptr_t)&(RV.MEMBER)) - (uintptr_t)&RV))
 
+// this struct is only used for offset calculations
+static struct riscv_t rv;
 
+static void get_reg(struct cg_state_t *cg, cg_r32_t dst, uint32_t src) {
+  if (src == rv_reg_zero) {
+    cg_xor_r32_r32(cg, dst, dst);
+  }
+  else {
+    cg_mov_r32_r64disp(cg, dst, cg_rsi, rv_offset(rv, X[src]));
+  }
+}
+
+static void set_reg(struct cg_state_t *cg, uint32_t dst, cg_r32_t src) {
+  if (dst != rv_reg_zero) {
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[dst]), src);
+  }
+}
+
+static void set_regi(struct cg_state_t *cg, uint32_t dst, int32_t imm) {
+  if (dst != rv_reg_zero) {
+    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[dst]), imm);
+  }
+}
 
 bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint32_t inst) {
-
-  // this struct is only used for offsets
-  static struct riscv_t rv;
 
   if (i->rd == rv_reg_zero) {
     switch (i->opcode) {
     case rv_inst_jal:
     case rv_inst_jalr:
+    case rv_inst_beq:
+    case rv_inst_bne:
+    case rv_inst_blt:
+    case rv_inst_bge:
+    case rv_inst_bltu:
+    case rv_inst_bgeu:
+    case rv_inst_sb:
+    case rv_inst_sh:
+    case rv_inst_sw:
+    case rv_inst_fsw:
+    case rv_inst_ecall:
+    case rv_inst_ebreak:
+      // these instructions dont use the rd field
       break;
     default:
       return true;
@@ -30,25 +62,21 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
   switch (i->opcode) {
   // RV32I
   case rv_inst_lui:
-    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm);
+    set_regi(cg, i->rd, i->imm);
     break;
   case rv_inst_auipc:
-    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), pc + i->imm);
+    set_regi(cg, i->rd, pc + i->imm);
     break;
   case rv_inst_jal:
     cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + i->imm);
-    if (i->rd != rv_reg_zero) {
-      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), pc + 4);
-    }
+    set_regi(cg, i->rd, pc + 4);
     break;
   case rv_inst_jalr:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+    get_reg(cg, cg_eax, i->rs1);
     cg_add_r32_i32(cg, cg_eax, i->imm);
     cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
     cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
-    if (i->rd != rv_reg_zero) {
-      cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), pc + 4);
-    }
+    set_regi(cg, i->rd, pc + 4);
     break;
   case rv_inst_beq:
   case rv_inst_bne:
@@ -56,7 +84,7 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
   case rv_inst_bge:
   case rv_inst_bltu:
   case rv_inst_bgeu:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[i->rs1]));
+    get_reg(cg, cg_eax, i->rs1);
     cg_cmp_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[i->rs2]));
     cg_mov_r32_i32(cg, cg_eax, pc + 4);
     cg_mov_r32_i32(cg, cg_edx, pc + i->imm);
@@ -88,8 +116,13 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
   case rv_inst_lbu:
   case rv_inst_lhu:
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
-    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, rv_offset(rv, X[i->rs1]));
-    cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
+    if (i->rs1 == rv_reg_zero) {
+      cg_mov_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
+    else {
+      get_reg(cg, cg_edx, i->rs1);
+      cg_add_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
     switch (i->opcode) {
     case rv_inst_lb:
       cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_read_b));
@@ -109,14 +142,19 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_read_s));
       break;
     }
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_sb:
   case rv_inst_sh:
   case rv_inst_sw:
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
-    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, i->rs1);
-    cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
+    if (i->rs1 == rv_reg_zero) {
+      cg_mov_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
+    else {
+      get_reg(cg, cg_edx, i->rs1);
+      cg_add_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
     cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, X[i->rs2]));  // value
     switch (i->opcode) {
     case rv_inst_sb:
@@ -136,29 +174,40 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_add_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm);
     }
     else {
-      cg_add_r32_i32(cg, cg_eax, i->imm);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      if (i->rs1 == rv_reg_zero) {
+        set_regi(cg, i->rd, i->imm);
+      }
+      else {
+        get_reg(cg, cg_eax, i->rs1);
+        cg_add_r32_i32(cg, cg_eax, i->imm);
+        set_reg(cg, i->rd, cg_eax);
+      }
     }
     break;
   case rv_inst_slti:
+    // cg_cmp_r64disp_i32?
+    get_reg(cg, cg_eax, i->rs1);
     cg_cmp_r32_i32(cg, cg_eax, i->imm);
     cg_setcc_r8(cg, cg_cc_lt, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_sltiu:
+    // cg_cmp_r64disp_i32?
+    get_reg(cg, cg_eax, i->rs1);
     cg_cmp_r32_i32(cg, cg_eax, i->imm);
     cg_setcc_r8(cg, cg_cc_c, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_xori:
     if (i->rd == i->rs1) {
       cg_xor_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_xor_r32_i32(cg, cg_eax, i->imm);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_ori:
@@ -166,8 +215,9 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_or_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_or_r32_i32(cg, cg_eax, i->imm);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_andi:
@@ -175,8 +225,9 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_and_r64disp_i32(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_and_r32_i32(cg, cg_eax, i->imm);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_slli:
@@ -184,8 +235,9 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_shl_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm & 0x1f);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_shl_r32_i8(cg, cg_eax, i->imm & 0x1f);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_srli:
@@ -193,8 +245,9 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_shr_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm & 0x1f);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_shr_r32_i8(cg, cg_eax, i->imm & 0x1f);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_srai:
@@ -202,134 +255,132 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
       cg_sar_r64disp_i8(cg, cg_rsi, rv_offset(rv, X[i->rd]), i->imm & 0x1f);
     }
     else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_sar_r32_i8(cg, cg_eax, i->imm & 0x1f);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
 
-  case rv_inst_add:
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
+  case rv_inst_add: 
+    get_reg(cg, cg_ecx, i->rs2);
     if (i->rs1 == i->rd) {
       cg_add_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
     }
     else {
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+      get_reg(cg, cg_eax, i->rs1);
       cg_add_r32_r32(cg, cg_eax, cg_ecx);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+      set_reg(cg, i->rd, cg_eax);
     }
     break;
   case rv_inst_sub:
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-//    if (i->rs1 == i->rd) {
+    get_reg(cg, cg_ecx, i->rs2);
+    if (i->rs1 == i->rd && false) {
 //      cg_sub_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
-//    }
-//    else {
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+    }
+    else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_sub_r32_r32(cg, cg_eax, cg_ecx);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
-//    }
+      set_reg(cg, i->rd, cg_eax);
+    }
     break;
   case rv_inst_sll:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
+    get_reg(cg, cg_eax, i->rs1);
+    get_reg(cg, cg_ecx, i->rs2);
     cg_and_r8_i8(cg, cg_cl, 0x1f);
     cg_shl_r32_cl(cg, cg_eax);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_slt:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-    cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
+    get_reg(cg, cg_eax, i->rs1);
+    cg_cmp_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[i->rs2]));
     cg_setcc_r8(cg, cg_cc_lt, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_sltu:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-    cg_cmp_r32_r32(cg, cg_eax, cg_ecx);
+    get_reg(cg, cg_eax, i->rs1);
+    cg_cmp_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, X[i->rs2]));
     cg_setcc_r8(cg, cg_cc_c, cg_dl);
     cg_movzx_r32_r8(cg, cg_eax, cg_dl);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_xor:
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-//    if (i->rs1 == i->rd) {
+    get_reg(cg, cg_ecx, i->rs2);
+    if (i->rs1 == i->rd && false) {
 //      cg_xor_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
-//    }
-//    else {
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+    }
+    else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_xor_r32_r32(cg, cg_eax, cg_ecx);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
-//    }
+      set_reg(cg, i->rd, cg_eax);
+    }
     break;
   case rv_inst_srl:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
+    get_reg(cg, cg_eax, i->rs1);
+    get_reg(cg, cg_ecx, i->rs2);
     cg_and_r8_i8(cg, cg_cl, 0x1f);
     cg_shr_r32_cl(cg, cg_eax);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_sra:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
+    get_reg(cg, cg_eax, i->rs1);
+    get_reg(cg, cg_ecx, i->rs2);
     cg_and_r8_i8(cg, cg_cl, 0x1f);
     cg_sar_r32_cl(cg, cg_eax);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_or:
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-//    if (i->rs1 == i->rd) {
+    get_reg(cg, cg_ecx, i->rs2);
+    if (i->rs1 == i->rd && false) {
 //      cg_or_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
-//    }
-//    else {
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+    }
+    else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_or_r32_r32(cg, cg_eax, cg_ecx);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
-//    }
+      set_reg(cg, i->rd, cg_eax);
+    }
     break;
   case rv_inst_and:
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-//    if (i->rs1 == i->rd) {
+    get_reg(cg, cg_ecx, i->rs2);
+    if (i->rs1 == i->rd && false) {
 //      cg_and_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
-//    }
-//    else {
-      cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
+    }
+    else {
+      get_reg(cg, cg_eax, i->rs1);
       cg_and_r32_r32(cg, cg_eax, cg_ecx);
-      cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
-//    }
+      set_reg(cg, i->rd, cg_eax);
+    }
     break;
 
   case rv_inst_fence:
     break;
 
   case rv_inst_ecall:
+    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + 4);
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
     cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.on_ecall));
     break;
   case rv_inst_ebreak:
+    cg_mov_r64disp_i32(cg, cg_rsi, rv_offset(rv, PC), pc + 4);
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);
     cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.on_ebreak));
     break;
 
   // RV32M
   case rv_inst_mul:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-    cg_imul_r32(cg, cg_ecx);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    get_reg(cg, cg_eax, i->rs1);
+    cg_imul_r64disp(cg, cg_rsi, rv_offset(rv, X[i->rs2]));
+    set_reg(cg, i->rd, cg_eax);
     break;
   case rv_inst_mulh:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-    cg_imul_r32(cg, cg_ecx);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_edx);
+    get_reg(cg, cg_eax, i->rs1);
+    cg_imul_r64disp(cg, cg_rsi, rv_offset(rv, X[i->rs2]));
+    set_reg(cg, i->rd, cg_edx);
     break;
   case rv_inst_mulhu:
-    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, i->rs1);
-    cg_mov_r32_r64disp(cg, cg_ecx, cg_rsi, i->rs2);
-    cg_imul_r32(cg, cg_ecx);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_edx);
+    get_reg(cg, cg_eax, i->rs1);
+    cg_mul_r64disp(cg, cg_rsi, rv_offset(rv, X[i->rs2]));
+    set_reg(cg, i->rd, cg_edx);
     break;
   case rv_inst_mulhsu:
   case rv_inst_div:
@@ -344,16 +395,81 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
 
   // RV32F
   case rv_inst_flw:
+    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
+    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, rv_offset(rv, X[i->rs1]));
+    cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_read_w));          // load
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_eax);    // store
+    break;
   case rv_inst_fsw:
+    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
+    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, rv_offset(rv, X[i->rs1]));
+    cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
+    cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, F[i->rs2]));  // value
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_write_w));         // store
+    break;
   case rv_inst_fmadds:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs3]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fmsubs:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs3]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fnmsubs:
+    // multiply
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    // negate
+    cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
+    cg_xor_r32_i32(cg, cg_eax, 0x80000000);
+    cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
+    // add
+    cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs3]));
+    // store
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fnmadds:
+    // multiply
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    // negate
+    cg_mov_r32_xmm(cg, cg_eax, cg_xmm0);
+    cg_xor_r32_i32(cg, cg_eax, 0x80000000);
+    cg_mov_xmm_r32(cg, cg_xmm0, cg_eax);
+    // subtract
+    cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs3]));
+    // store
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fadds:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_addss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fsubs:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_subss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fmuls:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mulss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fdivs:
+    cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_divss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs2]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fsqrts:
+    cg_sqrtss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fsgnjs:
   case rv_inst_fsgnjns:
   case rv_inst_fsgnjxs:

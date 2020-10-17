@@ -14,9 +14,9 @@ static bool op_load( uint32_t inst, struct rv_inst_t *ir) {
   const uint32_t funct3 = dec_funct3(inst);
   const uint32_t rd     = dec_rd(inst);
 
+  ir->rd  = rd;
   ir->imm = imm;
   ir->rs1 = rs1;
-  ir->rd  = rd;
 
   switch (funct3) {
   case 0: // LB
@@ -116,6 +116,7 @@ static bool op_store( uint32_t inst, struct rv_inst_t *ir) {
   const uint32_t rs2    = dec_rs2(inst);
   const uint32_t funct3 = dec_funct3(inst);
 
+  ir->rd  = rv_reg_zero;
   ir->imm = imm;
   ir->rs1 = rs1;
   ir->rs2 = rs2;
@@ -255,6 +256,7 @@ static bool op_branch(uint32_t inst, struct rv_inst_t *ir) {
   const uint32_t rs1   = dec_rs1(inst);
   const uint32_t rs2   = dec_rs2(inst);
 
+  ir->rd = rv_reg_zero;
   ir->imm = imm;
   ir->rs1 = rs1;
   ir->rs2 = rs2;
@@ -391,6 +393,7 @@ static bool op_store_fp(uint32_t inst, struct rv_inst_t *ir) {
   const uint32_t rs2 = dec_rs2(inst);
   const int32_t  imm = dec_stype_imm(inst);
 
+  ir->rd = rv_reg_zero;
   ir->rs1 = rs1;
   ir->rs2 = rs2;
   ir->imm = imm;

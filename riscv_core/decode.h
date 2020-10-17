@@ -129,6 +129,8 @@ static bool inst_is_branch(const struct rv_inst_t *ir) {
   case rv_inst_bge:
   case rv_inst_bltu:
   case rv_inst_bgeu:
+  case rv_inst_ebreak:
+  case rv_inst_ecall:
     return true;
   default:
     return false;

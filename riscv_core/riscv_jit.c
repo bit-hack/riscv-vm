@@ -667,7 +667,7 @@ static bool op_op(struct riscv_t *rv, uint32_t inst, struct block_t *block) {
       set_reg(block, rv, rd, cg_edx);
       break;
     case 0b011: // MULHU
-      cg_imul_r32(cg, cg_ecx);
+      cg_mul_r32(cg, cg_ecx);
       set_reg(block, rv, rd, cg_edx);
       break;
     case 0b010: // MULHSU
@@ -975,7 +975,7 @@ static bool op_load_fp(struct riscv_t *rv,
   cg_add_r32_i32(cg, cg_edx, imm);
 
   const int32_t offset = rv_offset(rv, io.mem_read_w);
-  cg_call_r64disp(cg, reg_rv, offset);
+  cg_call_r64disp(cg, reg_rv, rv_offset(rv, io.mem_read_w));
 
   set_freg(block, rv, rd, cg_eax);
 
@@ -1381,6 +1381,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
     if (!codegen(&dec, cg, block->pc_end, inst)) {
       assert(!"unreachable");
     }
+    ++block->instructions;
     block->pc_end = pc;
     if (inst_is_branch(&dec)) {
       break;
