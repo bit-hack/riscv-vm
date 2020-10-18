@@ -137,5 +137,87 @@ static bool inst_is_branch(const struct rv_inst_t *ir) {
   }
 }
 
+static bool inst_is_rv32f(const struct rv_inst_t *ir) {
+  switch (ir->opcode) {
+  case rv_inst_flw:
+  case rv_inst_fsw:
+  case rv_inst_fmadds:
+  case rv_inst_fmsubs:
+  case rv_inst_fnmsubs:
+  case rv_inst_fnmadds:
+  case rv_inst_fadds:
+  case rv_inst_fsubs:
+  case rv_inst_fmuls:
+  case rv_inst_fdivs:
+  case rv_inst_fsqrts:
+  case rv_inst_fsgnjs:
+  case rv_inst_fsgnjns:
+  case rv_inst_fsgnjxs:
+  case rv_inst_fmins:
+  case rv_inst_fmaxs:
+  case rv_inst_fcvtws:
+  case rv_inst_fcvtwus:
+  case rv_inst_fmvxw:
+  case rv_inst_feqs:
+  case rv_inst_flts:
+  case rv_inst_fles:
+  case rv_inst_fclasss:
+  case rv_inst_fcvtsw:
+  case rv_inst_fcvtswu:
+  case rv_inst_fmvwx:
+    return true;
+  }
+  return false;
+}
+
+static bool inst_bypass_zero_store(const struct rv_inst_t *inst) {
+  switch (inst->opcode) {
+  case rv_inst_jal:
+  case rv_inst_jalr:
+  case rv_inst_beq:
+  case rv_inst_bne:
+  case rv_inst_blt:
+  case rv_inst_bge:
+  case rv_inst_bltu:
+  case rv_inst_bgeu:
+  case rv_inst_sb:
+  case rv_inst_sh:
+  case rv_inst_sw:
+  case rv_inst_ecall:
+  case rv_inst_ebreak:
+  case rv_inst_flw:
+  case rv_inst_fsw:
+  case rv_inst_fmadds:
+  case rv_inst_fmsubs:
+  case rv_inst_fnmsubs:
+  case rv_inst_fnmadds:
+  case rv_inst_fadds:
+  case rv_inst_fsubs:
+  case rv_inst_fmuls:
+  case rv_inst_fdivs:
+  case rv_inst_fsqrts:
+  case rv_inst_fsgnjs:
+  case rv_inst_fsgnjns:
+  case rv_inst_fsgnjxs:
+  case rv_inst_fmins:
+  case rv_inst_fmaxs:
+  case rv_inst_fcvtws:
+  case rv_inst_fcvtwus:
+  case rv_inst_fmvxw:
+  case rv_inst_feqs:
+  case rv_inst_flts:
+  case rv_inst_fles:
+  case rv_inst_fclasss:
+  case rv_inst_fcvtsw:
+  case rv_inst_fcvtswu:
+  case rv_inst_fmvwx:
+    return true;
+  }
+  return false;
+}
+
 bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc);
+
 bool codegen(const struct rv_inst_t *ir, struct cg_state_t *cg, uint32_t pc, uint32_t inst);
+void codegen_prologue(struct cg_state_t *cg);
+void codegen_epilogue(struct cg_state_t *cg);

@@ -36,30 +36,17 @@ static void set_regi(struct cg_state_t *cg, uint32_t dst, int32_t imm) {
 
 bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint32_t inst) {
 
+  // skip instructions that would purely store to X0
   if (i->rd == rv_reg_zero) {
-    switch (i->opcode) {
-    case rv_inst_jal:
-    case rv_inst_jalr:
-    case rv_inst_beq:
-    case rv_inst_bne:
-    case rv_inst_blt:
-    case rv_inst_bge:
-    case rv_inst_bltu:
-    case rv_inst_bgeu:
-    case rv_inst_sb:
-    case rv_inst_sh:
-    case rv_inst_sw:
-    case rv_inst_fsw:
-    case rv_inst_ecall:
-    case rv_inst_ebreak:
-      // these instructions dont use the rd field
-      break;
-    default:
+    // some instructions have rd == 0 but we process them anyway
+    if (!inst_bypass_zero_store(i)) {
       return true;
     }
   }
 
   switch (i->opcode) {
+
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32I
   case rv_inst_lui:
     set_regi(cg, i->rd, i->imm);
@@ -72,11 +59,16 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     set_regi(cg, i->rd, pc + 4);
     break;
   case rv_inst_jalr:
-    get_reg(cg, cg_eax, i->rs1);
-    cg_add_r32_i32(cg, cg_eax, i->imm);
-    cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);
-    set_regi(cg, i->rd, pc + 4);
+    if (i->rs1 == rv_reg_zero) {
+      cg_mov_r32_i32(cg, cg_eax, i->imm & 0xfffffffe);
+    }
+    else {
+      get_reg(cg, cg_eax, i->rs1);
+      cg_add_r32_i32(cg, cg_eax, i->imm);
+      cg_and_r32_i32(cg, cg_eax, 0xfffffffe);
+    }
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, PC), cg_eax);        // branch
+    set_regi(cg, i->rd, pc + 4);                                      // link
     break;
   case rv_inst_beq:
   case rv_inst_bne:
@@ -261,21 +253,32 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     }
     break;
 
-  case rv_inst_add: 
-    get_reg(cg, cg_ecx, i->rs2);
-    if (i->rs1 == i->rd) {
-      cg_add_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+  case rv_inst_add:
+    if (i->rs2 == rv_reg_zero) {
+      get_reg(cg, cg_eax, i->rs1);
+      set_reg(cg, i->rd, cg_eax);
     }
     else {
-      get_reg(cg, cg_eax, i->rs1);
-      cg_add_r32_r32(cg, cg_eax, cg_ecx);
-      set_reg(cg, i->rd, cg_eax);
+      get_reg(cg, cg_ecx, i->rs2);
+      if (i->rs1 == i->rd) {
+        cg_add_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+      }
+      else {
+        if (i->rs1 == rv_reg_zero) {
+          set_reg(cg, i->rd, cg_ecx);
+        }
+        else {
+          get_reg(cg, cg_eax, i->rs1);
+          cg_add_r32_r32(cg, cg_eax, cg_ecx);
+          set_reg(cg, i->rd, cg_eax);
+        }
+      }
     }
     break;
   case rv_inst_sub:
     get_reg(cg, cg_ecx, i->rs2);
-    if (i->rs1 == i->rd && false) {
-//      cg_sub_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+    if (i->rs1 == i->rd) {
+      cg_sub_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
     }
     else {
       get_reg(cg, cg_eax, i->rs1);
@@ -306,8 +309,8 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     break;
   case rv_inst_xor:
     get_reg(cg, cg_ecx, i->rs2);
-    if (i->rs1 == i->rd && false) {
-//      cg_xor_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+    if (i->rs1 == i->rd) {
+      cg_xor_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
     }
     else {
       get_reg(cg, cg_eax, i->rs1);
@@ -331,8 +334,8 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     break;
   case rv_inst_or:
     get_reg(cg, cg_ecx, i->rs2);
-    if (i->rs1 == i->rd && false) {
-//      cg_or_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+    if (i->rs1 == i->rd) {
+      cg_or_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
     }
     else {
       get_reg(cg, cg_eax, i->rs1);
@@ -342,8 +345,8 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     break;
   case rv_inst_and:
     get_reg(cg, cg_ecx, i->rs2);
-    if (i->rs1 == i->rd && false) {
-//      cg_and_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
+    if (i->rs1 == i->rd) {
+      cg_and_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_ecx);
     }
     else {
       get_reg(cg, cg_eax, i->rs1);
@@ -366,6 +369,7 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.on_ebreak));
     break;
 
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32M
   case rv_inst_mul:
     get_reg(cg, cg_eax, i->rs1);
@@ -393,20 +397,26 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_op));
     break;
 
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32F
   case rv_inst_flw:
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
-    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, rv_offset(rv, X[i->rs1]));
+    get_reg(cg, cg_edx, i->rs1);
     cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
-    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_read_w));          // load
-    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_eax);    // store
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_read_w));          // read
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_eax);
     break;
   case rv_inst_fsw:
     cg_mov_r64_r64(cg, cg_rcx, cg_rsi);                                 // rv
-    cg_mov_r32_r64disp(cg, cg_edx, cg_rsi, rv_offset(rv, X[i->rs1]));
-    cg_add_r32_i32(cg, cg_edx, i->imm);                                 // addr
+    if (i->rs1 == rv_reg_zero) {
+      cg_mov_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
+    else {
+      get_reg(cg, cg_edx, i->rs1);
+      cg_add_r32_i32(cg, cg_edx, i->imm);                               // addr
+    }
     cg_movsx_r64_r64disp(cg, cg_r8, cg_rsi, rv_offset(rv, F[i->rs2]));  // value
-    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_write_w));         // store
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, io.mem_write_w));         // write
     break;
   case rv_inst_fmadds:
     cg_movss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, F[i->rs1]));
@@ -475,18 +485,35 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
   case rv_inst_fsgnjxs:
   case rv_inst_fmins:
   case rv_inst_fmaxs:
-  case rv_inst_fcvtws:
-  case rv_inst_fcvtwus:
-  case rv_inst_fmvxw:
   case rv_inst_feqs:
   case rv_inst_flts:
   case rv_inst_fles:
   case rv_inst_fclasss:
+    // defer to a handler function for these ones
+    cg_mov_r64_r64(cg, cg_rcx, cg_rsi);   // arg1 - rv
+    cg_mov_r32_i32(cg, cg_edx, inst);     // arg2 - inst
+    cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_fp));
+    break;
+  case rv_inst_fmvxw:
+    cg_mov_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    break;
+  case rv_inst_fcvtws:
+  case rv_inst_fcvtwus:
+    cg_cvttss2si_r32_r64disp(cg, cg_eax, cg_rsi, rv_offset(rv, F[i->rs1]));
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, X[i->rd]), cg_eax);
+    break;
   case rv_inst_fcvtsw:
   case rv_inst_fcvtswu:
+    cg_cvtsi2ss_xmm_r64disp(cg, cg_xmm0, cg_rsi, rv_offset(rv, X[i->rs1]));
+    cg_movss_r64disp_xmm(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_xmm0);
+    break;
   case rv_inst_fmvwx:
+    get_reg(cg, cg_eax, i->rs1);
+    cg_mov_r64disp_r32(cg, cg_rsi, rv_offset(rv, F[i->rd]), cg_eax);
     break;
 
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32 Zicsr
   case rv_inst_csrrw:
   case rv_inst_csrrs:
@@ -500,10 +527,12 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
     cg_call_r64disp(cg, cg_rsi, rv_offset(rv, jit.handle_op_system));
     break;
 
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32 Zifencei
   case rv_inst_fencei:
     break;
 
+  // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32A
   case rv_inst_lrw:
   case rv_inst_scw:
@@ -525,4 +554,25 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
 
   // success
   return true;
+}
+
+void codegen_prologue(struct cg_state_t *cg) {
+  // new stack frame
+  cg_push_r64(cg, cg_rbp);
+  cg_mov_r64_r64(cg, cg_rbp, cg_rsp);
+  cg_sub_r64_i32(cg, cg_rsp, 64);
+  // save rsi
+  cg_mov_r64disp_r64(cg, cg_rsp, 32, cg_rsi);
+  // move rv struct pointer into rsi
+  cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+}
+
+void codegen_epilogue(struct cg_state_t *cg) {
+  // restore rsi
+  cg_mov_r64_r64disp(cg, cg_rsi, cg_rsp, 32);
+  // leave stack frame
+  cg_mov_r64_r64(cg, cg_rsp, cg_rbp);
+  cg_pop_r64(cg, cg_rbp);
+  // return
+  cg_ret(cg);
 }

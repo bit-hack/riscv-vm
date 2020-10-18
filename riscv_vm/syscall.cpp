@@ -135,6 +135,10 @@ void syscall_brk(struct riscv_t *rv) {
 }
 
 void syscall_gettimeofday(struct riscv_t *rv) {
+#define FIXED_TIME_STEP 0
+#if FIXED_TIME_STEP
+  static clock_t fake = 0;
+#endif
   // access userdata
   state_t *s = (state_t*)rv_userdata(rv);
   // get the parameters
@@ -142,7 +146,11 @@ void syscall_gettimeofday(struct riscv_t *rv) {
   riscv_word_t tz = rv_get_reg(rv, rv_reg_a1);
   // return the clock time
   if (tv) {
+#if FIXED_TIME_STEP
+    clock_t t = (fake += CLOCKS_PER_SEC / 10);
+#else
     clock_t t = clock();
+#endif
     int32_t tv_sec = t / CLOCKS_PER_SEC;
     int32_t tv_usec = (t % CLOCKS_PER_SEC) * (1000000 / CLOCKS_PER_SEC);
     s->mem.write(tv + 0, (const uint8_t*)&tv_sec,  4);

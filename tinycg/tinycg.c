@@ -732,3 +732,56 @@ void cg_imul_r64disp(struct cg_state_t *cg, cg_r64_t base, int32_t offset) {
     cg_emit_data(cg, &offset, sizeof(offset));
   }
 }
+
+void cg_sub_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_r32_t src) {
+  cg_emit_data(cg, "\x29", 1);
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, src, base);
+    const int8_t offset8 = offset;
+    cg_emit_data(cg, &offset8, sizeof(offset8));
+  }
+  else {
+    cg_modrm(cg, 2, src, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+}
+
+void cg_xor_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_r32_t src) {
+  cg_emit_data(cg, "\x31", 1);
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, src, base);
+    const int8_t offset8 = offset;
+    cg_emit_data(cg, &offset8, sizeof(offset8));
+  }
+  else {
+    cg_modrm(cg, 2, src, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+}
+
+void cg_or_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_r32_t src) {
+  cg_emit_data(cg, "\x09", 1);
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, src, base);
+    const int8_t offset8 = offset;
+    cg_emit_data(cg, &offset8, sizeof(offset8));
+  }
+  else {
+    cg_modrm(cg, 2, src, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+}
+
+void cg_and_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_r32_t src) {
+  cg_emit_data(cg, "\x21", 1);
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, src, base);
+    const int8_t offset8 = offset;
+    cg_emit_data(cg, &offset8, sizeof(offset8));
+  }
+  else {
+    cg_modrm(cg, 2, src, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+}
+

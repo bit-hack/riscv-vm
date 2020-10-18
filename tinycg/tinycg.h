@@ -220,3 +220,8 @@ void cg_cvtsi2ss_xmm_r64disp(struct cg_state_t *, cg_xmm_t dst, cg_r64_t base, i
 
 void cg_mov_r32_xmm(struct cg_state_t *, cg_r32_t dst, cg_xmm_t src);
 void cg_mov_xmm_r32(struct cg_state_t *, cg_xmm_t dst, cg_r32_t src);
+
+void cg_and_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t src);
+void cg_or_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t src);
+void cg_xor_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t src);
+void cg_sub_r64disp_r32(struct cg_state_t *, cg_r64_t base, int32_t offset, cg_r32_t src);
