@@ -694,6 +694,34 @@ void cg_cmp_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg
   }
 }
 
+void cg_cmp_r64disp_i32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, int32_t imm) {
+  // opcode
+  if (imm >= -128 && imm <= 127) {
+    cg_emit_data(cg, "\x83", 1);
+  }
+  else {
+    cg_emit_data(cg, "\x81", 1);
+  }
+  // modrm
+  if (offset >= -128 && offset <= 127) {
+    cg_modrm(cg, 1, 7, base);
+    const int8_t offs8 = offset;
+    cg_emit_data(cg, &offs8, sizeof(offs8));
+  }
+  else {
+    cg_modrm(cg, 2, 7, base);
+    cg_emit_data(cg, &offset, sizeof(offset));
+  }
+  // immediate data
+  if (imm >= -128 && imm <= 127) {
+    const int8_t imm8 = imm;
+    cg_emit_data(cg, &imm8, sizeof(imm8));
+  }
+  else {
+    cg_emit_data(cg, &imm, sizeof(imm));
+  }
+}
+
 void cg_add_r64disp_r32(struct cg_state_t *cg, cg_r64_t base, int32_t offset, cg_r32_t src) {
   cg_emit_data(cg, "\x01", 1);
   if (offset >= -128 && offset <= 127) {
