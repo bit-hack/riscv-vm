@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "riscv.h"
 #include "riscv_private.h"
