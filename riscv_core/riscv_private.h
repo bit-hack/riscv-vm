@@ -104,16 +104,26 @@ struct block_t {
   uint8_t code[];
 };
 
-struct riscv_jit_t {
+struct block_map_t {
+  // max number of entries in the block map
+  uint32_t num_entries;
+  // block map
+  struct block_t **map;
+};
+
+struct code_buffer_t {
   // memory range for code buffer
   uint8_t *start;
   uint8_t *end;
   // code buffer write point
   uint8_t *head;
-  // block hash map
-  uint32_t block_map_size;
-  struct block_t **block_map;
+};
 
+struct riscv_jit_t {
+  // code buffer
+  struct code_buffer_t code;
+  // block hash map
+  struct block_map_t block_map;
   // handler for non jitted op_op instructions
   void(*handle_op_op)(struct riscv_t *, uint32_t);
   void(*handle_op_fp)(struct riscv_t *, uint32_t);
@@ -287,4 +297,4 @@ uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val);
 uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val);
 
 bool rv_jit_init(struct riscv_t *rv);
-void rv_jit_dump_stats(struct riscv_t *rv);
+void rv_jit_free(struct riscv_t *rv);

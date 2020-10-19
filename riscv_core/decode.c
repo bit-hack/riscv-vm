@@ -619,16 +619,26 @@ static const opcode_t opcodes[] = {
 };
 
 bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc) {
-  const uint32_t index = (inst & INST_6_2) >> 2;
-  // find translation function
-  const opcode_t op = opcodes[index];
-  if (!op) {
-    return false;
+
+  // standard uncompressed
+  if ((inst & 3) == 3) {
+    const uint32_t index = (inst & INST_6_2) >> 2;
+    // find translation function
+    const opcode_t op = opcodes[index];
+    if (!op) {
+      return false;
+    }
+    if (!op(inst, out)) {
+      return false;
+    }
+    *pc += 4;
   }
-  if (!op(inst, out)) {
-    return false;
+  else {
+    // compressed instruction
+    // TODO
+    assert(!"Unreachable");
   }
-  *pc += 4;
+
   // success
   return true;
 }

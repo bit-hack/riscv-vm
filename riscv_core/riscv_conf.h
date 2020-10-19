@@ -31,6 +31,7 @@
 
 #define RISCV_DUMP_JIT_TRACE       0
 #define RISCV_JIT_PROFILE          0
+#define RISCV_DUMP_JIT_BLOCK       0
 
 // default top of stack address
 #define DEFAULT_STACK_ADDR (0xFFFFF000)

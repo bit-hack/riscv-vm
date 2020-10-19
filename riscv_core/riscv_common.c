@@ -198,10 +198,9 @@ struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   rv->userdata = userdata;
   // reset
   rv_reset(rv, 0u);
-
   // initalize jit engine
   rv_jit_init(rv);
-
+  // return the rv structure
   return rv;
 }
 
@@ -215,9 +214,9 @@ bool rv_has_halted(struct riscv_t *rv) {
 
 void rv_delete(struct riscv_t *rv) {
   assert(rv);
-#if 0
-  rv_jit_dump_stats(rv);
-#endif
+  // free any jit state
+  rv_jit_free(rv);
+  // free the rv structure
   free(rv);
   return;
 }

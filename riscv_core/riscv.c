@@ -883,6 +883,11 @@ bool rv_jit_init(struct riscv_t *rv) {
 }
 
 // stub function as no jit present
+void rv_jit_free(struct riscv_t *rv) {
+  (void)rv;
+}
+
+// stub function as no jit present
 void rv_jit_dump_stats(struct riscv_t *rv) {
   (void)rv;
 }

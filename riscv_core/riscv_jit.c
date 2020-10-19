@@ -48,11 +48,6 @@
 //    linux   - no shadow space needed.
 
 
-enum {
-  reg_rv = cg_rsi
-};
-
-
 // total size of the code block
 static const uint32_t code_size = 1024 * 1024 * 8;
 
@@ -86,6 +81,15 @@ static void *sys_alloc_exec_mem(uint32_t size) {
 #endif
 }
 
+static void sys_free_exec_mem(void *ptr) {
+#ifdef _WIN32
+  VirtualFree(ptr, 0, MEM_RELEASE);
+#endif
+#ifdef __linux__
+  assert(!"todo");
+#endif
+}
+
 // this hash function is used when mapping addresses to indexes in the block map
 static uint32_t wang_hash(uint32_t a) {
   a = (a ^ 61) ^ (a >> 16);
@@ -96,13 +100,70 @@ static uint32_t wang_hash(uint32_t a) {
   return a;
 }
 
+// allocate a block map
+void block_map_alloc(struct block_map_t *map, uint32_t num_entries) {
+  assert(0 == (num_entries & (num_entries - 1)));
+  const uint32_t size = num_entries * sizeof(struct block_t *);
+  void *ptr = malloc(size);
+  memset(ptr, 0, size);
+  map->map = (struct block_t**)ptr;
+  map->num_entries = num_entries;
+}
+
+// free a block map
+static void block_map_free(struct block_map_t *map) {
+  assert(map->map);
+  free(map->map);
+  map->map = NULL;
+}
+
+// clear all entries in the block map
+// note: will not clear the code buffer
+static void block_map_clear(struct block_map_t *map) {
+  assert(map);
+  memset(map->map, 0, map->num_entries * sizeof(struct block_t *));
+}
+
+// insert a block into a blockmap
+static void block_map_insert(struct block_map_t *map, struct block_t *block) {
+  assert(map->map && block);
+  // insert into the block map
+  const uint32_t mask = map->num_entries - 1;
+  uint32_t index = wang_hash(block->pc_start);
+  for (;; ++index) {
+    if (map->map[index & mask] == NULL) {
+      map->map[index & mask] = block;
+      break;
+    }
+  }
+}
+
+// expand the block map by a factor of x2
+static void block_map_enlarge(struct riscv_jit_t *jit) {
+  // allocate a new block map
+  struct block_map_t new_map;
+  block_map_alloc(&new_map, jit->block_map.num_entries * 2);
+  // insert blocks into new map
+  for (uint32_t i = 0; i < jit->block_map.num_entries; ++i) {
+    struct block_t *block = jit->block_map.map[i];
+    if (block) {
+      block_map_insert(&new_map, block);
+    }
+  }
+  // release old map
+  block_map_free(&jit->block_map);
+  // use new map
+  jit->block_map.map = new_map.map;
+  jit->block_map.num_entries = new_map.num_entries;
+}
+
 // allocate a new code block
 static struct block_t *block_alloc(struct riscv_jit_t *jit) {
   // place a new block
-  struct block_t *block = (struct block_t *)jit->head;
+  struct block_t *block = (struct block_t *)jit->code.head;
   struct cg_state_t *cg = &block->cg;
   // set the initial codegen write head
-  cg_init(cg, block->code, jit->end);
+  cg_init(cg, block->code, jit->code.end);
   block->predict = NULL;
 #if RISCV_JIT_PROFILE
   block->hit_count = 0;
@@ -122,19 +183,12 @@ static void block_dump(struct block_t *block, FILE *fd) {
 
 // finialize a code block and insert into the block map
 static void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
-  assert(jit && block && jit->head && jit->block_map);
+  assert(jit && block && jit->code.head && jit->block_map.map);
   struct cg_state_t *cg = &block->cg;
   // advance the block head ready for the next alloc
-  jit->head = block->code + cg_size(cg);
+  jit->code.head = block->code + cg_size(cg);
   // insert into the block map
-  uint32_t index = wang_hash(block->pc_start);
-  const uint32_t mask = jit->block_map_size - 1;
-  for (;; ++index) {
-    if (jit->block_map[index & mask] == NULL) {
-      jit->block_map[index & mask] = block;
-      break;
-    }
-  }
+  block_map_insert(&jit->block_map, block);
 #if RISCV_DUMP_JIT_TRACE
   block_dump(block, stdout);
 #endif
@@ -144,11 +198,11 @@ static void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
 
 // try to locate an already translated block in the block map
 static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
-  assert(jit && jit->block_map);
+  assert(jit && jit->block_map.map);
   uint32_t index = wang_hash(addr);
-  const uint32_t mask = jit->block_map_size - 1;
+  const uint32_t mask = jit->block_map.num_entries - 1;
   for (;; ++index) {
-    struct block_t *block = jit->block_map[index & mask];
+    struct block_t *block = jit->block_map.map[index & mask];
     if (block == NULL) {
       return NULL;
     }
@@ -376,18 +430,19 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   for (;;) {
     // fetch the next instruction
     const uint32_t inst = rv->io.mem_ifetch(rv, block->pc_end);
-
+    // decode
     struct rv_inst_t dec;
     uint32_t pc = block->pc_end;
     if (!decode(inst, &dec, &pc)) {
       assert(!"unreachable");
     }
-
+    // codegen
     if (!codegen(&dec, cg, block->pc_end, inst)) {
       assert(!"unreachable");
     }
     ++block->instructions;
     block->pc_end = pc;
+    // stop on branch
     if (inst_is_branch(&dec)) {
       break;
     }
@@ -397,7 +452,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   codegen_epilogue(cg);
 }
 
-struct block_t *block_find_or_translate(struct riscv_t *rv, struct block_t *prev) {
+static struct block_t *block_find_or_translate(struct riscv_t *rv, struct block_t *prev) {
   // lookup the next block in the block map
   struct block_t *next = block_find(&rv->jit, rv->PC);
   // translate if we didnt find one
@@ -416,6 +471,40 @@ struct block_t *block_find_or_translate(struct riscv_t *rv, struct block_t *prev
   }
   assert(next);
   return next;
+}
+
+static void rv_jit_dump_stats(struct riscv_t *rv) {
+  struct riscv_jit_t *jit = &rv->jit;
+
+  uint32_t num_blocks = 0;
+  uint32_t code_size = (uint32_t)(jit->code.head - jit->code.start);
+
+  for (uint32_t i = 0; i < jit->block_map.num_entries; ++i) {
+    struct block_t *block = jit->block_map.map[i];
+    if (!block) {
+      continue;
+    }
+    ++num_blocks;
+
+#if RISCV_JIT_PROFILE
+    if (block->hit_count > 1000) {
+      block_dump(block, stdout);
+      fprintf(stdout, "Hit count: %u\n", block->hit_count);
+    }
+#endif
+  }
+
+  fprintf(stdout, "Number of blocks: %u\n", num_blocks);
+  fprintf(stdout, "Code size: %u\n", code_size);
+}
+
+// flush the blockmap and code cache
+static void rv_jit_clear(struct riscv_t *rv) {
+  struct riscv_jit_t *jit = &rv->jit;
+  // clear the block map
+  block_map_clear(&jit->block_map);
+  // reset the code buffer write position
+  jit->code.head = jit->code.start;
 }
 
 void rv_step(struct riscv_t *rv, int32_t cycles) {
@@ -467,23 +556,21 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
 }
 
 bool rv_jit_init(struct riscv_t *rv) {
-
   struct riscv_jit_t *jit = &rv->jit;
 
   // allocate the block map which maps address to blocks
-  if (jit->block_map == NULL) {
-    jit->block_map_size = map_size;
-    jit->block_map = malloc(map_size * sizeof(struct block_t*));
-    memset(jit->block_map, 0, map_size * sizeof(struct block_t*));
+  if (jit->block_map.map == NULL) {
+    jit->block_map.num_entries = map_size;
+    block_map_alloc(&jit->block_map, map_size);
   }
 
   // allocate block/code storage space
-  if (jit->start == NULL) {
+  if (jit->code.start == NULL) {
     void *ptr = sys_alloc_exec_mem(code_size);
     memset(ptr, 0xcc, code_size);
-    jit->start = ptr;
-    jit->head = ptr;
-    jit->end = jit->start + code_size;
+    jit->code.start = ptr;
+    jit->code.head = ptr;
+    jit->code.end = jit->code.start + code_size;
   }
 
   // setup nonjit instruction callbacks
@@ -494,27 +581,20 @@ bool rv_jit_init(struct riscv_t *rv) {
   return true;
 }
 
-void rv_jit_dump_stats(struct riscv_t *rv) {
+void rv_jit_free(struct riscv_t *rv) {
   struct riscv_jit_t *jit = &rv->jit;
 
-  uint32_t num_blocks = 0;
-  uint32_t code_size = (uint32_t)(jit->head - jit->start);
-
-  for (uint32_t i = 0; i < jit->block_map_size; ++i) {
-    struct block_t *block = jit->block_map[i];
-    if (!block) {
-      continue;
-    }
-    ++num_blocks;
-
-#if RISCV_JIT_PROFILE
-    if (block->hit_count > 1000) {
-      block_dump(block, stdout);
-      fprintf(stdout, "Hit count: %u\n", block->hit_count);
-    }
+#if RISCV_DUMP_JIT_BLOCK
+  rv_jit_dump_stats(rv);
 #endif
-}
 
-  fprintf(stdout, "Number of blocks: %u\n", num_blocks);
-  fprintf(stdout, "Code size: %u\n", code_size);
+  if (jit->block_map.map) {
+    block_map_free(&jit->block_map);
+    jit->block_map.map = NULL;
+  }
+
+  if (jit->code.start) {
+    sys_free_exec_mem(jit->code.start);
+    jit->code.start = NULL;
+  }
 }
