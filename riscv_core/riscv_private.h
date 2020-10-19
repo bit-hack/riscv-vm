@@ -244,6 +244,21 @@ static inline int32_t dec_stype_imm(uint32_t inst) {
   return ((int32_t)dst) >> 20;
 }
 
+// decode compressed func3
+static inline uint32_t dec_cfunc3(uint32_t inst) {
+  return (inst >> 13) & 0x7;
+}
+
+// decode compressed func4
+static inline uint32_t dec_cfunc4(uint32_t inst) {
+  return (inst >> 12) & 0xf;
+}
+
+// decode compressed func4
+static inline uint32_t dec_cfunc6(uint32_t inst) {
+  return (inst >> 10) & 0x3f;
+}
+
 // sign extend a 16 bit value
 static inline uint32_t sign_extend_h(uint32_t x) {
   return (int32_t)((int16_t)x);

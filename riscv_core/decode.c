@@ -618,27 +618,98 @@ static const opcode_t opcodes[] = {
       op_branch, op_jalr,     NULL,     op_jal,      op_system, NULL,     NULL, NULL, // 11
 };
 
+static bool decode_c_q0(uint32_t inst, struct rv_inst_t *out) {
+  const uint32_t func3 = dec_cfunc3(inst);
+  switch (func3) {
+  case 0:  // C.ADDI4SPN
+  case 1:  // C.FLD
+  case 2:  // C.LW
+  case 3:  // C.FLW
+  case 4:  // reserved
+  case 5:  // C.FSD
+  case 6:  // C.SW
+  case 7:  // C.FSW
+  default:
+    return false;
+  }
+  return true;
+}
+
+static bool decode_c_q1(uint32_t inst, struct rv_inst_t *out) {
+  const uint32_t func3 = dec_cfunc3(inst);
+  switch (func3) {
+  case 0:  // C.NOP / C.ADDI
+  case 1:  // C.JAL
+  case 2:  // C.LI
+  case 3:  // C.ADDI16SP / C.LUI
+  case 4:  // C.SRLI / C.SRAI / C.ANDI / C.SUB / C.XOR / C.OR / C.AND
+  case 5:  // C.J
+  case 6:  // C.BEZQ
+  case 7:  // C.BNEZ
+  default:
+    return false;
+  }
+  return true;
+}
+
+static bool decode_c_q2(uint32_t inst, struct rv_inst_t *out) {
+  const uint32_t func3 = dec_cfunc3(inst);
+  switch (func3) {
+  case 0:  // C.SLLI
+  case 1:  // C.FLDSP
+  case 2:  // C.LWSP
+  case 3:  // C.FLWSP
+  case 4:  // C.JR / C.MV / C.EBREAK / C.JALR / C.ADD
+  case 5:  // C.FSDSP
+  case 6:  // C.SWSP
+  case 7:  // C.FSWSP
+  default:
+    return false;
+  }
+  return true;
+}
+
 bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc) {
-
-  // standard uncompressed
-  if ((inst & 3) == 3) {
-    const uint32_t index = (inst & INST_6_2) >> 2;
-    // find translation function
-    const opcode_t op = opcodes[index];
-    if (!op) {
+  switch (inst & 3) {
+  case 0:
+    // compressed quadrant 0
+    if (!decode_c_q0(inst, out)) {
       return false;
     }
-    if (!op(inst, out)) {
+    *pc += 2;
+    break;
+  case 1:
+    // compressed quadrant 1
+    if (!decode_c_q1(inst, out)) {
       return false;
     }
-    *pc += 4;
+    *pc += 2;
+    break;
+  case 2:
+    // compressed quadrant 2
+    if (!decode_c_q2(inst, out)) {
+      return false;
+    }
+    *pc += 2;
+    break;
+  case 3:
+    // standard uncompressed
+    {
+      const uint32_t index = (inst & INST_6_2) >> 2;
+      // find translation function
+      const opcode_t op = opcodes[index];
+      if (!op) {
+        return false;
+      }
+      if (!op(inst, out)) {
+        return false;
+      }
+      *pc += 4;
+    }
+    break;
+  default:
+    return false;
   }
-  else {
-    // compressed instruction
-    // TODO
-    assert(!"Unreachable");
-  }
-
   // success
   return true;
 }
