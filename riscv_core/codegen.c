@@ -7,6 +7,30 @@
 #include "../tinycg/tinycg.h"
 
 
+// calling convention
+//
+//        windows     linux
+//  arg1  RCX         RDI
+//  arg2  RDX         RSI
+//  arg3  R8          RDX
+//  arg4  R9          RCX
+//  arg5              R8
+//  arg6              R9
+//
+//  callee save
+//    windows   RBX, RBP, RDI, RSI, R12, R13, R14, R15
+//    linux     RBX, RBP,           R12, R13, R14, R15
+//
+//  caller save
+//    windows   RAX, RCX, RDX,           R8, R9, R10, R11
+//    linux     RAX, RCX, RDX, RDI, RSI, R8, R9, R10, R11
+//
+//  erata:
+//    windows - caller must allocate 32bytes of shadow space.
+//    windows - stack must be 16 byte aligned.
+//    linux   - no shadow space needed.
+
+
 // byte offset from rv structure address to member address
 #define rv_offset(RV, MEMBER) ((int32_t)(((uintptr_t)&(RV.MEMBER)) - (uintptr_t)&RV))
 
@@ -564,23 +588,34 @@ bool codegen(const struct rv_inst_t *i, struct cg_state_t *cg, uint32_t pc, uint
   return true;
 }
 
-void codegen_prologue(struct cg_state_t *cg) {
-  // new stack frame
-  cg_push_r64(cg, cg_rbp);
-  cg_mov_r64_r64(cg, cg_rbp, cg_rsp);
-  cg_sub_r64_i32(cg, cg_rsp, 64);
-  // save rsi
-  cg_mov_r64disp_r64(cg, cg_rsp, 32, cg_rsi);
-  // move rv struct pointer into rsi
-  cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+void codegen_prologue(struct cg_state_t *cg, bool is_leaf) {
+  if (is_leaf) {
+    cg_push_r64(cg, cg_rsi);
+    cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+  }
+  else {
+    // new stack frame
+    cg_push_r64(cg, cg_rbp);
+    cg_mov_r64_r64(cg, cg_rbp, cg_rsp);
+    cg_sub_r64_i32(cg, cg_rsp, 64);
+    // save rsi
+    cg_mov_r64disp_r64(cg, cg_rsp, 32, cg_rsi);
+    // move rv struct pointer into rsi
+    cg_mov_r64_r64(cg, cg_rsi, cg_rcx);
+  }
 }
 
-void codegen_epilogue(struct cg_state_t *cg) {
-  // restore rsi
-  cg_mov_r64_r64disp(cg, cg_rsi, cg_rsp, 32);
-  // leave stack frame
-  cg_mov_r64_r64(cg, cg_rsp, cg_rbp);
-  cg_pop_r64(cg, cg_rbp);
+void codegen_epilogue(struct cg_state_t *cg, bool is_leaf) {
+  if (is_leaf) {
+    cg_pop_r64(cg, cg_rsi);
+  }
+  else {
+    // restore rsi
+    cg_mov_r64_r64disp(cg, cg_rsi, cg_rsp, 32);
+    // leave stack frame
+    cg_mov_r64_r64(cg, cg_rsp, cg_rbp);
+    cg_pop_r64(cg, cg_rbp);
+  }
   // return
   cg_ret(cg);
 }

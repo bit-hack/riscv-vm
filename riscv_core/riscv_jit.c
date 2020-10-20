@@ -24,35 +24,13 @@
 //       when inserting it into the hash map, we swap the hot block closer to
 //       its ideal hash location.  it will then have a faster lookup.
 
-// calling convention
-//
-//        windows     linux
-//  arg1  RCX         RDI
-//  arg2  RDX         RSI
-//  arg3  R8          RDX
-//  arg4  R9          RCX
-//  arg5              R8
-//  arg6              R9
-//
-//  callee save
-//    windows   RBX, RBP, RDI, RSI, R12, R13, R14, R15
-//    linux     RBX, RBP,           R12, R13, R14, R15
-//
-//  caller save
-//    windows   RAX, RCX, RDX,           R8, R9, R10, R11
-//    linux     RAX, RCX, RDX, RDI, RSI, R8, R9, R10, R11
-//
-//  erata:
-//    windows - caller must allocate 32bytes of shadow space.
-//    windows - stack must be 16 byte aligned.
-//    linux   - no shadow space needed.
-
-
 // total size of the code block
 static const uint32_t code_size = 1024 * 1024 * 8;
 
 // total number of block map entries
-static const uint32_t map_size = 1024 * 64;
+static const uint32_t map_size = 1024 * 4;
+
+static void rv_jit_clear(struct riscv_t *rv);
 
 
 // flush the instruction cache for a region
@@ -101,13 +79,14 @@ static uint32_t wang_hash(uint32_t a) {
 }
 
 // allocate a block map
-void block_map_alloc(struct block_map_t *map, uint32_t num_entries) {
-  assert(0 == (num_entries & (num_entries - 1)));
-  const uint32_t size = num_entries * sizeof(struct block_t *);
+void block_map_alloc(struct block_map_t *map, uint32_t max_entries) {
+  assert(0 == (max_entries & (max_entries - 1)));
+  const uint32_t size = max_entries * sizeof(struct block_t *);
   void *ptr = malloc(size);
   memset(ptr, 0, size);
   map->map = (struct block_t**)ptr;
-  map->num_entries = num_entries;
+  map->max_entries = max_entries;
+  map->fill = 0;
 }
 
 // free a block map
@@ -121,14 +100,15 @@ static void block_map_free(struct block_map_t *map) {
 // note: will not clear the code buffer
 static void block_map_clear(struct block_map_t *map) {
   assert(map);
-  memset(map->map, 0, map->num_entries * sizeof(struct block_t *));
+  memset(map->map, 0, map->max_entries * sizeof(struct block_t *));
+  map->fill = 0;
 }
 
 // insert a block into a blockmap
 static void block_map_insert(struct block_map_t *map, struct block_t *block) {
   assert(map->map && block);
   // insert into the block map
-  const uint32_t mask = map->num_entries - 1;
+  const uint32_t mask = map->max_entries - 1;
   uint32_t index = wang_hash(block->pc_start);
   for (;; ++index) {
     if (map->map[index & mask] == NULL) {
@@ -136,15 +116,16 @@ static void block_map_insert(struct block_map_t *map, struct block_t *block) {
       break;
     }
   }
+  ++map->fill;
 }
 
 // expand the block map by a factor of x2
 static void block_map_enlarge(struct riscv_jit_t *jit) {
   // allocate a new block map
   struct block_map_t new_map;
-  block_map_alloc(&new_map, jit->block_map.num_entries * 2);
+  block_map_alloc(&new_map, jit->block_map.max_entries * 2);
   // insert blocks into new map
-  for (uint32_t i = 0; i < jit->block_map.num_entries; ++i) {
+  for (uint32_t i = 0; i < jit->block_map.max_entries; ++i) {
     struct block_t *block = jit->block_map.map[i];
     if (block) {
       block_map_insert(&new_map, block);
@@ -154,7 +135,8 @@ static void block_map_enlarge(struct riscv_jit_t *jit) {
   block_map_free(&jit->block_map);
   // use new map
   jit->block_map.map = new_map.map;
-  jit->block_map.num_entries = new_map.num_entries;
+  jit->block_map.max_entries = new_map.max_entries;
+  // .fill remains unchanged
 }
 
 // allocate a new code block
@@ -189,6 +171,12 @@ static void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
   jit->code.head = block->code + cg_size(cg);
   // insert into the block map
   block_map_insert(&jit->block_map, block);
+
+  // expand the block map when needed
+  if (jit->block_map.fill * 2 > jit->block_map.max_entries) {
+    block_map_enlarge(jit);
+  }
+
 #if RISCV_DUMP_JIT_TRACE
   block_dump(block, stdout);
 #endif
@@ -200,7 +188,7 @@ static void block_finish(struct riscv_jit_t *jit, struct block_t *block) {
 static struct block_t *block_find(struct riscv_jit_t *jit, uint32_t addr) {
   assert(jit && jit->block_map.map);
   uint32_t index = wang_hash(addr);
-  const uint32_t mask = jit->block_map.num_entries - 1;
+  const uint32_t mask = jit->block_map.max_entries - 1;
   for (;; ++index) {
     struct block_t *block = jit->block_map.map[index & mask];
     if (block == NULL) {
@@ -413,6 +401,7 @@ static void handle_op_fp(struct riscv_t *rv, uint32_t inst) {
   }
 }
 
+#if 1
 static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   assert(rv && block);
 
@@ -424,7 +413,7 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   block->pc_end = rv->PC;
 
   // prologue
-  codegen_prologue(cg);
+  codegen_prologue(cg, false);
 
   // translate the basic block
   for (;;) {
@@ -449,14 +438,79 @@ static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
   }
 
   // epilogue
-  codegen_epilogue(cg);
+  codegen_epilogue(cg, false);
 }
+#else
+static void rv_translate_block(struct riscv_t *rv, struct block_t *block) {
+  assert(rv && block);
+
+  struct cg_state_t *cg = &block->cg;
+
+  // setup the basic block
+  block->instructions = 0;
+  block->pc_start = rv->PC;
+  block->pc_end = rv->PC;
+
+  uint32_t         lst_inst[1024];
+  struct rv_inst_t lst_dec [1024];
+  uint32_t         lst_pc  [1024];
+
+  bool non_leaf = false;
+
+  // decode the basic block
+  uint32_t pc = block->pc_start;
+  uint32_t num_decoded = 0;
+  for (;;) {
+    assert(num_decoded < 1024);
+    // fetch the next instruction
+    lst_pc[num_decoded] = pc;
+    const uint32_t inst = rv->io.mem_ifetch(rv, pc);
+    lst_inst[num_decoded] = inst;
+    // decode an instruction
+    struct rv_inst_t *dec = lst_dec + (num_decoded++);
+    if (!decode(inst, dec, &pc)) {
+      assert(!"unreachable");
+    }
+    // track leaf status
+    non_leaf |= inst_will_call(dec);
+    // stop on branch
+    if (inst_is_branch(dec)) {
+      break;
+    }
+  }
+
+  // prologue
+  codegen_prologue(cg, !non_leaf);
+  // codegen all decoded instructions
+  for (uint32_t i = 0; i < num_decoded; ++i) {
+    // information we need
+    const uint32_t inst = lst_inst[i];
+    struct rv_inst_t *dec = lst_dec + i;
+    // codegen
+    if (!codegen(dec, cg, lst_pc[i], inst)) {
+      assert(!"unreachable");
+    }
+  }
+  // epilogue
+  codegen_epilogue(cg, !non_leaf);
+
+  block->instructions = num_decoded;
+  block->pc_end = pc;
+}
+#endif
 
 static struct block_t *block_find_or_translate(struct riscv_t *rv, struct block_t *prev) {
   // lookup the next block in the block map
   struct block_t *next = block_find(&rv->jit, rv->PC);
   // translate if we didnt find one
   if (!next) {
+
+    static const uint32_t margin = 1024;
+    if (rv->jit.code.head + margin > rv->jit.code.end) {
+      rv_jit_clear(rv);
+      prev = NULL;
+    }
+
     next = block_alloc(&rv->jit);
     assert(next);
     rv_translate_block(rv, next);
@@ -479,7 +533,7 @@ static void rv_jit_dump_stats(struct riscv_t *rv) {
   uint32_t num_blocks = 0;
   uint32_t code_size = (uint32_t)(jit->code.head - jit->code.start);
 
-  for (uint32_t i = 0; i < jit->block_map.num_entries; ++i) {
+  for (uint32_t i = 0; i < jit->block_map.max_entries; ++i) {
     struct block_t *block = jit->block_map.map[i];
     if (!block) {
       continue;
@@ -560,7 +614,7 @@ bool rv_jit_init(struct riscv_t *rv) {
 
   // allocate the block map which maps address to blocks
   if (jit->block_map.map == NULL) {
-    jit->block_map.num_entries = map_size;
+    jit->block_map.max_entries = map_size;
     block_map_alloc(&jit->block_map, map_size);
   }
 

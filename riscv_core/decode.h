@@ -216,8 +216,54 @@ static bool inst_bypass_zero_store(const struct rv_inst_t *inst) {
   return false;
 }
 
+static inline bool inst_will_call(const struct rv_inst_t *inst) {
+  switch (inst->opcode) {
+  case rv_inst_lb:
+  case rv_inst_lh:
+  case rv_inst_lw:
+  case rv_inst_lbu:
+  case rv_inst_lhu:
+
+  case rv_inst_sb:
+  case rv_inst_sh:
+  case rv_inst_sw:
+
+  case rv_inst_ecall:
+  case rv_inst_ebreak:
+
+  case rv_inst_mulhsu:
+  case rv_inst_div:
+  case rv_inst_divu:
+  case rv_inst_rem:
+  case rv_inst_remu:
+
+  case rv_inst_flw:
+  case rv_inst_fsw:
+
+  case rv_inst_fsgnjs:
+  case rv_inst_fsgnjns:
+  case rv_inst_fsgnjxs:
+  case rv_inst_fmins:
+  case rv_inst_fmaxs:
+  case rv_inst_feqs:
+  case rv_inst_flts:
+  case rv_inst_fles:
+  case rv_inst_fclasss:
+
+  case rv_inst_csrrw:
+  case rv_inst_csrrs:
+  case rv_inst_csrrc:
+  case rv_inst_csrrwi:
+  case rv_inst_csrrsi:
+  case rv_inst_csrrci:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc);
 
 bool codegen(const struct rv_inst_t *ir, struct cg_state_t *cg, uint32_t pc, uint32_t inst);
-void codegen_prologue(struct cg_state_t *cg);
-void codegen_epilogue(struct cg_state_t *cg);
+void codegen_prologue(struct cg_state_t *cg, bool is_leaf);
+void codegen_epilogue(struct cg_state_t *cg, bool is_leaf);

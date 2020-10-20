@@ -5,6 +5,62 @@
 #include <cassert>
 
 
+#ifdef _MSC_VER
+
+struct memory_t {
+
+  memory_t()
+    : base(nullptr)
+  {
+  }
+
+  bool init();
+
+  // read a c-string from memory
+  uint32_t read_str(uint8_t *dst, uint32_t addr, uint32_t max) {
+    strncpy((char*)dst, (const char *)(base + addr), max);
+    return (uint32_t)strlen((char*)dst);
+  }
+
+  // read an instruction from memory
+  uint32_t read_ifetch(uint32_t addr) {
+    return *(uint32_t*)(base + addr);
+  }
+
+  // read a word from memory
+  uint32_t read_w(uint32_t addr) {
+    return *(uint32_t*)(base + addr);
+  }
+
+  // read a short from memory
+  uint16_t read_s(uint32_t addr) {
+    return *(uint16_t*)(base + addr);
+  }
+
+  // read a byte from memory
+  uint8_t read_b(uint32_t addr) {
+    return *(uint8_t*)(base + addr);
+  }
+
+  // read a length of data from memory
+  void read(uint8_t *dst, uint32_t addr, uint32_t size) {
+    memcpy(dst, base + addr, size);
+  }
+
+  void write(uint32_t addr, const uint8_t *src, uint32_t size) {
+    memcpy(base + addr, src, size);
+  }
+
+  void fill(uint32_t addr, uint32_t size, uint8_t val) {
+    memset(base + addr, val, size);
+  }
+
+protected:
+  uint8_t *base;
+};
+
+#else
+
 struct memory_t {
 
   struct chunk_t {
@@ -15,8 +71,8 @@ struct memory_t {
     chunks.fill(nullptr);
   }
 
-  ~memory_t() {
-    clear();
+  bool init() {
+    return true;
   }
 
   // read a c-string from memory
@@ -149,18 +205,11 @@ struct memory_t {
     }
   }
 
-  void clear() {
-    for (chunk_t *c : chunks) {
-      if (c) {
-        delete c;
-      }
-    }
-    chunks.fill(nullptr);
-  }
-
 protected:
   static const uint32_t mask_lo = 0xffff;
   static const uint32_t mask_hi = ~mask_lo;
 
   std::array<chunk_t*, 0x10000> chunks;
 };
+
+#endif

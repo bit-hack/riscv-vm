@@ -102,6 +102,7 @@ set(DRV_SRC
     "riscv_vm/elf.cpp"
     "riscv_vm/main.cpp"
     "riscv_vm/memory.h"
+    "riscv_vm/memory.cpp"
     "riscv_vm/syscall.cpp"
     "riscv_vm/state.h"
     "riscv_vm/args.cpp"

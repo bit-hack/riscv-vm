@@ -183,6 +183,10 @@ int main(int argc, char **args) {
   state->fd_map[1] = stdout;
   state->fd_map[2] = stderr;
 
+  if (!state->mem.init()) {
+    fprintf(stderr, "Unable to reserve memory space\n");
+  }
+
   // find the start of the heap
   if (const ELF::Elf32_Sym *end = elf.get_symbol("_end")) {
     state->break_addr = end->st_value;

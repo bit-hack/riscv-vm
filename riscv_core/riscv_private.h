@@ -106,7 +106,9 @@ struct block_t {
 
 struct block_map_t {
   // max number of entries in the block map
-  uint32_t num_entries;
+  uint32_t max_entries;
+  // number of entries currently in the map
+  uint32_t fill;
   // block map
   struct block_t **map;
 };
