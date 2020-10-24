@@ -70,28 +70,28 @@ set(RISCV_COMMON_SRC
     "riscv_core/riscv.h"
     "riscv_core/riscv_conf.h"
     "riscv_core/riscv_private.h"
-    "riscv_core/riscv_common.c"
+    "riscv_core/riscv_common.cpp"
     )
 add_library(riscv_common ${RISCV_COMMON_SRC})
 
 
 set(RISCV_CORE_SRC
-    "riscv_core/riscv.c"
+    "riscv_core/riscv.cpp"
     )
 add_library(riscv_core ${RISCV_CORE_SRC})
 
 
 set(RISCV_CORE_JIT_SRC
-    "riscv_core/riscv_jit.c"
+    "riscv_core/riscv_jit.cpp"
     "riscv_core/decode.h"
-    "riscv_core/decode.c"
-    "riscv_core/codegen.c"
+    "riscv_core/decode.cpp"
+    "riscv_core/codegen.cpp"
     )
 add_library(riscv_core_jit ${RISCV_CORE_JIT_SRC})
 
 
 set(TINYCG_SRC
-    "tinycg/tinycg.c"
+    "tinycg/tinycg.cpp"
     "tinycg/tinycg.h"
     )
 add_library(tinycg ${TINYCG_SRC})

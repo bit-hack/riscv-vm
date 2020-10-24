@@ -595,7 +595,7 @@ void rv_step(struct riscv_t *rv, int32_t cycles) {
 #if RISCV_JIT_PROFILE
     block->hit_count++;
 #endif
-    call_block_t c = (call_block_t)block->code;
+    call_block_t c = (call_block_t)((void*)block->code);
     c(rv);
 
     // increment the cycles csr
@@ -622,8 +622,8 @@ bool rv_jit_init(struct riscv_t *rv) {
   if (jit->code.start == NULL) {
     void *ptr = sys_alloc_exec_mem(code_size);
     memset(ptr, 0xcc, code_size);
-    jit->code.start = ptr;
-    jit->code.head = ptr;
+    jit->code.start = (uint8_t*)ptr;
+    jit->code.head = (uint8_t*)ptr;
     jit->code.end = jit->code.start + code_size;
   }
 
