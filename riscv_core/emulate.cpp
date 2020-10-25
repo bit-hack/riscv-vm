@@ -19,7 +19,7 @@ static bool emulate(riscv_t &rv, const rv_inst_t &i) {
     rv.X[i.rd] = i.imm + i.pc;
     break;
   case rv_inst_jal:
-    rv.PC += i.imm;
+    rv.PC = i.pc + i.imm;
     rv.X[i.rd] = i.pc + inst_size;
     break;
   case rv_inst_jalr:
