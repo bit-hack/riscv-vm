@@ -7,6 +7,9 @@
 
 static bool emulate(riscv_t &rv, const rv_inst_t &i) {
 
+  // note: rv.PC is not the real PC of the instruction and should not be used
+  //       except to update the PC.  To read the PC i.pc should be used.
+
   static const int32_t inst_size = 4;
 
   switch (i.opcode) {
