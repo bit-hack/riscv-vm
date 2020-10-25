@@ -1,7 +1,11 @@
+#! /usr/bin/python3
+
 import subprocess
 import os
 import sys
 
+
+skiplist = ['I-EBREAK-01.elf', 'I-ECALL-01.elf']
 
 # defaults
 path_emu = os.path.join('..', 'build', 'Debug', 'riscv_vm.exe')
@@ -63,6 +67,8 @@ def main():
         path_emu = sys.argv[1]
 
     for file in os.listdir(path_elf):
+        if file in skiplist:
+            continue
         name = os.path.splitext(file)
         file_elf = os.path.join(path_elf, file)
         file_ref = os.path.join(path_ref, name[0] + '.reference_output')
