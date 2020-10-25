@@ -86,6 +86,7 @@ set(RISCV_CORE_JIT_SRC
     "riscv_core/decode.h"
     "riscv_core/decode.cpp"
     "riscv_core/codegen.cpp"
+    "riscv_core/emulate.cpp"
     )
 add_library(riscv_core_jit ${RISCV_CORE_JIT_SRC})
 

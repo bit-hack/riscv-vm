@@ -1,10 +1,11 @@
 #pragma once
-#include <stdbool.h>
+#include <unordered_map>
+#include <vector>
 
 #include "riscv_conf.h"
 #include "riscv.h"
+#include "decode.h"
 
-#include "../tinycg/tinycg.h"
 
 #define RV_NUM_REGS 32
 
@@ -87,6 +88,14 @@ enum {
 
 // a translated basic block
 struct block_t {
+
+  block_t(riscv_word_t addr)
+    : instructions(0)
+    , pc_start(addr)
+    , pc_end(addr)
+    , predict(nullptr)
+  {}
+
   // number of instructions encompased
   uint32_t instructions;
   // address range of the basic block
@@ -94,42 +103,49 @@ struct block_t {
   uint32_t pc_end;
   // static next block prediction
   struct block_t *predict;
-  // code gen structure
-  struct cg_state_t cg;
+  // decoded instructions
+  std::vector<rv_inst_t> inst;
+
 #if RISCV_JIT_PROFILE
   // number of times this block is executed
   uint32_t hit_count;
 #endif
-  // start of this blocks code
-  uint8_t code[];
 };
 
 struct block_map_t {
-  // max number of entries in the block map
-  uint32_t max_entries;
-  // number of entries currently in the map
-  uint32_t fill;
-  // block map
-  struct block_t **map;
-};
 
-struct code_buffer_t {
-  // memory range for code buffer
-  uint8_t *start;
-  uint8_t *end;
-  // code buffer write point
-  uint8_t *head;
+  block_t *alloc(uint32_t addr) {
+    block_t *b = new block_t(addr);
+    map[addr] = b;
+    return b;
+  }
+
+  block_t *find(uint32_t addr) {
+    auto itt = map.find(addr);
+    if (itt == map.end()) {
+      return nullptr;
+    }
+    return itt->second;
+  }
+
+  void clear() {
+    for (auto &p : map) {
+      delete p.second;
+    }
+    map.clear();
+  }
+
+protected:
+  std::unordered_map<uint32_t, block_t *> map;
 };
 
 struct riscv_jit_t {
-  // code buffer
-  struct code_buffer_t code;
   // block hash map
-  struct block_map_t block_map;
+  block_map_t block_map;
   // handler for non jitted op_op instructions
-  void(*handle_op_op)(struct riscv_t *, uint32_t);
-  void(*handle_op_fp)(struct riscv_t *, uint32_t);
-  void(*handle_op_system)(struct riscv_t *, uint32_t);
+  void(*handle_op_op)(riscv_t *, uint32_t);
+  void(*handle_op_fp)(riscv_t *, uint32_t);
+  void(*handle_op_system)(riscv_t *, uint32_t);
 };
 
 struct riscv_t {
@@ -137,7 +153,7 @@ struct riscv_t {
   bool halt;
 
   // io interface
-  struct riscv_io_t io;
+  riscv_io_t io;
   // integer registers
   riscv_word_t X[RV_NUM_REGS];
   riscv_word_t PC;
@@ -163,7 +179,7 @@ struct riscv_t {
   uint32_t csr_mbadaddr;
 
   // jit specific data
-  struct riscv_jit_t jit;
+  riscv_jit_t jit;
 };
 
 // decode rd field
@@ -289,14 +305,14 @@ static inline uint32_t calc_fclass(uint32_t f) {
   return out;
 }
 
-void rv_except_inst_misaligned(struct riscv_t *rv, uint32_t old_pc);
-void rv_except_load_misaligned(struct riscv_t *rv, uint32_t addr);
-void rv_except_store_misaligned(struct riscv_t *rv, uint32_t addr);
-void rv_except_illegal_inst(struct riscv_t *rv);
+void rv_except_inst_misaligned(riscv_t *rv, uint32_t old_pc);
+void rv_except_load_misaligned(riscv_t *rv, uint32_t addr);
+void rv_except_store_misaligned(riscv_t *rv, uint32_t addr);
+void rv_except_illegal_inst(riscv_t *rv);
 
-uint32_t csr_csrrw(struct riscv_t *rv, uint32_t csr, uint32_t val);
-uint32_t csr_csrrs(struct riscv_t *rv, uint32_t csr, uint32_t val);
-uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val);
+uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val);
+uint32_t csr_csrrs(riscv_t *rv, uint32_t csr, uint32_t val);
+uint32_t csr_csrrc(riscv_t *rv, uint32_t csr, uint32_t val);
 
-bool rv_jit_init(struct riscv_t *rv);
-void rv_jit_free(struct riscv_t *rv);
+bool rv_jit_init(riscv_t *rv);
+void rv_jit_free(riscv_t *rv);

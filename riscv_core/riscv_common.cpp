@@ -190,8 +190,7 @@ uint32_t csr_csrrc(struct riscv_t *rv, uint32_t csr, uint32_t val) {
 
 struct riscv_t *rv_create(const struct riscv_io_t *io, riscv_user_t userdata) {
   assert(io);
-  struct riscv_t *rv = (struct riscv_t *)malloc(sizeof(struct riscv_t));
-  memset(rv, 0, sizeof(struct riscv_t));
+  riscv_t *rv = new riscv_t;
   // copy over the IO interface
   memcpy(&rv->io, io, sizeof(struct riscv_io_t));
   // copy over the userdata
@@ -217,8 +216,7 @@ void rv_delete(struct riscv_t *rv) {
   // free any jit state
   rv_jit_free(rv);
   // free the rv structure
-  free(rv);
-  return;
+  delete rv;
 }
 
 void rv_reset(struct riscv_t *rv, riscv_word_t pc) {

@@ -620,6 +620,9 @@ static const opcode_t opcodes[] = {
 
 bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc) {
 
+  // save the effective PC of the instruction
+  out->pc = *pc;
+
   // standard uncompressed
   if ((inst & 3) == 3) {
     const uint32_t index = (inst & INST_6_2) >> 2;

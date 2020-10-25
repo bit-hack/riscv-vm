@@ -111,12 +111,13 @@ enum {
 };
 
 struct rv_inst_t {
-  uint8_t opcode;
-  uint8_t rd, rs1, rs2;
+  riscv_word_t pc;
   union {
     int32_t imm;
     uint8_t rs3;
   };
+  uint8_t opcode;
+  uint8_t rd, rs1, rs2;
 };
 
 static bool inst_is_branch(const struct rv_inst_t *ir) {
@@ -262,8 +263,9 @@ static inline bool inst_will_call(const struct rv_inst_t *inst) {
   }
 }
 
-bool decode(uint32_t inst, struct rv_inst_t *out, uint32_t *pc);
+bool decode(uint32_t inst, rv_inst_t *out, uint32_t *pc);
+void emulate_block(riscv_t *rv, struct block_t &block);
 
-bool codegen(const struct rv_inst_t *ir, struct cg_state_t *cg, uint32_t pc, uint32_t inst);
+bool codegen(const rv_inst_t *ir, struct cg_state_t *cg, uint32_t pc, uint32_t inst);
 void codegen_prologue(struct cg_state_t *cg, bool is_leaf);
 void codegen_epilogue(struct cg_state_t *cg, bool is_leaf);

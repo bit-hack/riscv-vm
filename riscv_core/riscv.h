@@ -120,5 +120,5 @@ void rv_halt(struct riscv_t *);
 bool rv_has_halted(struct riscv_t *);
 
 #ifdef __cplusplus
-};  // ifdef __cplusplus
+};  // extern "C"
 #endif
