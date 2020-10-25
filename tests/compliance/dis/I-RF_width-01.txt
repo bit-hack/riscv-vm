@@ -1,0 +1,201 @@
+
+elf/I-RF_width-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011400 l    d  .data	00000000 .data
+00011700 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccYDpyJo.o
+00011400 l       .data	00000000 test_A1_res
+00011440 l       .data	00000000 test_A2_res
+0001030c l       .text	00000000 end_testcode
+00011c00 g       *ABS*	00000000 __global_pointer$
+00011480 g       .data	00000000 end_signature
+00011808 g       .tohost	00000000 __SDATA_BEGIN__
+00011500 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011400 g       .data	00000000 begin_signature
+00011808 g       .tohost	00000000 __BSS_END__
+00011600 g       .data	00000000 end_regstate
+00011808 g       .tohost	00000000 __bss_start
+00011400 g       .data	00000000 __DATA_BEGIN__
+00011808 g       .tohost	00000000 _edata
+00011808 g       .tohost	00000000 _end
+00011800 g       .tohost	00000000 fromhost
+00011700 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001817          	auipc	a6,0x1
+   10084:	38080813          	addi	a6,a6,896 # 11400 <__DATA_BEGIN__>
+   10088:	00100013          	li	zero,1
+   1008c:	00100093          	li	ra,1
+   10090:	00100113          	li	sp,1
+   10094:	00100193          	li	gp,1
+   10098:	00100213          	li	tp,1
+   1009c:	00100293          	li	t0,1
+   100a0:	00100313          	li	t1,1
+   100a4:	00100393          	li	t2,1
+   100a8:	00100413          	li	s0,1
+   100ac:	00100493          	li	s1,1
+   100b0:	00100513          	li	a0,1
+   100b4:	00100593          	li	a1,1
+   100b8:	00100613          	li	a2,1
+   100bc:	00100693          	li	a3,1
+   100c0:	00100713          	li	a4,1
+   100c4:	00100793          	li	a5,1
+   100c8:	01f09093          	slli	ra,ra,0x1f
+   100cc:	0000c463          	bltz	ra,100d4 <userstart+0x60>
+   100d0:	00000093          	li	ra,0
+   100d4:	01f11113          	slli	sp,sp,0x1f
+   100d8:	00014463          	bltz	sp,100e0 <userstart+0x6c>
+   100dc:	00000113          	li	sp,0
+   100e0:	01f19193          	slli	gp,gp,0x1f
+   100e4:	0001c463          	bltz	gp,100ec <userstart+0x78>
+   100e8:	00000193          	li	gp,0
+   100ec:	01f21213          	slli	tp,tp,0x1f
+   100f0:	00024463          	bltz	tp,100f8 <userstart+0x84>
+   100f4:	00000213          	li	tp,0
+   100f8:	01f29293          	slli	t0,t0,0x1f
+   100fc:	0002c463          	bltz	t0,10104 <userstart+0x90>
+   10100:	00000293          	li	t0,0
+   10104:	01f31313          	slli	t1,t1,0x1f
+   10108:	00034463          	bltz	t1,10110 <userstart+0x9c>
+   1010c:	00000313          	li	t1,0
+   10110:	01f39393          	slli	t2,t2,0x1f
+   10114:	0003c463          	bltz	t2,1011c <userstart+0xa8>
+   10118:	00000393          	li	t2,0
+   1011c:	01f41413          	slli	s0,s0,0x1f
+   10120:	00044463          	bltz	s0,10128 <userstart+0xb4>
+   10124:	00000413          	li	s0,0
+   10128:	01f49493          	slli	s1,s1,0x1f
+   1012c:	0004c463          	bltz	s1,10134 <userstart+0xc0>
+   10130:	00000493          	li	s1,0
+   10134:	01f51513          	slli	a0,a0,0x1f
+   10138:	00054463          	bltz	a0,10140 <userstart+0xcc>
+   1013c:	00000513          	li	a0,0
+   10140:	01f59593          	slli	a1,a1,0x1f
+   10144:	0005c463          	bltz	a1,1014c <userstart+0xd8>
+   10148:	00000593          	li	a1,0
+   1014c:	01f61613          	slli	a2,a2,0x1f
+   10150:	00064463          	bltz	a2,10158 <userstart+0xe4>
+   10154:	00000613          	li	a2,0
+   10158:	01f69693          	slli	a3,a3,0x1f
+   1015c:	0006c463          	bltz	a3,10164 <userstart+0xf0>
+   10160:	00000693          	li	a3,0
+   10164:	01f71713          	slli	a4,a4,0x1f
+   10168:	00074463          	bltz	a4,10170 <userstart+0xfc>
+   1016c:	00000713          	li	a4,0
+   10170:	01f79793          	slli	a5,a5,0x1f
+   10174:	0007c463          	bltz	a5,1017c <userstart+0x108>
+   10178:	00000793          	li	a5,0
+   1017c:	00082023          	sw	zero,0(a6)
+   10180:	00182223          	sw	ra,4(a6)
+   10184:	00282423          	sw	sp,8(a6)
+   10188:	00382623          	sw	gp,12(a6)
+   1018c:	00482823          	sw	tp,16(a6)
+   10190:	00582a23          	sw	t0,20(a6)
+   10194:	00682c23          	sw	t1,24(a6)
+   10198:	00782e23          	sw	t2,28(a6)
+   1019c:	02882023          	sw	s0,32(a6)
+   101a0:	02982223          	sw	s1,36(a6)
+   101a4:	02a82423          	sw	a0,40(a6)
+   101a8:	02b82623          	sw	a1,44(a6)
+   101ac:	02c82823          	sw	a2,48(a6)
+   101b0:	02d82a23          	sw	a3,52(a6)
+   101b4:	02e82c23          	sw	a4,56(a6)
+   101b8:	02f82e23          	sw	a5,60(a6)
+   101bc:	00001097          	auipc	ra,0x1
+   101c0:	28408093          	addi	ra,ra,644 # 11440 <test_A2_res>
+   101c4:	00100813          	li	a6,1
+   101c8:	00100893          	li	a7,1
+   101cc:	00100913          	li	s2,1
+   101d0:	00100993          	li	s3,1
+   101d4:	00100a13          	li	s4,1
+   101d8:	00100a93          	li	s5,1
+   101dc:	00100b13          	li	s6,1
+   101e0:	00100b93          	li	s7,1
+   101e4:	00100c13          	li	s8,1
+   101e8:	00100c93          	li	s9,1
+   101ec:	00100d13          	li	s10,1
+   101f0:	00100d93          	li	s11,1
+   101f4:	00100e13          	li	t3,1
+   101f8:	00100e93          	li	t4,1
+   101fc:	00100f13          	li	t5,1
+   10200:	00100f93          	li	t6,1
+   10204:	01f81813          	slli	a6,a6,0x1f
+   10208:	00084463          	bltz	a6,10210 <userstart+0x19c>
+   1020c:	00000813          	li	a6,0
+   10210:	01f89893          	slli	a7,a7,0x1f
+   10214:	0008c463          	bltz	a7,1021c <userstart+0x1a8>
+   10218:	00000893          	li	a7,0
+   1021c:	01f91913          	slli	s2,s2,0x1f
+   10220:	00094463          	bltz	s2,10228 <userstart+0x1b4>
+   10224:	00000913          	li	s2,0
+   10228:	01f99993          	slli	s3,s3,0x1f
+   1022c:	0009c463          	bltz	s3,10234 <userstart+0x1c0>
+   10230:	00000993          	li	s3,0
+   10234:	01fa1a13          	slli	s4,s4,0x1f
+   10238:	000a4463          	bltz	s4,10240 <userstart+0x1cc>
+   1023c:	00000a13          	li	s4,0
+   10240:	01fa9a93          	slli	s5,s5,0x1f
+   10244:	000ac463          	bltz	s5,1024c <userstart+0x1d8>
+   10248:	00000a93          	li	s5,0
+   1024c:	01fb1b13          	slli	s6,s6,0x1f
+   10250:	000b4463          	bltz	s6,10258 <userstart+0x1e4>
+   10254:	00000b13          	li	s6,0
+   10258:	01fb9b93          	slli	s7,s7,0x1f
+   1025c:	000bc463          	bltz	s7,10264 <userstart+0x1f0>
+   10260:	00000b93          	li	s7,0
+   10264:	01fc1c13          	slli	s8,s8,0x1f
+   10268:	000c4463          	bltz	s8,10270 <userstart+0x1fc>
+   1026c:	00000c13          	li	s8,0
+   10270:	01fc9c93          	slli	s9,s9,0x1f
+   10274:	000cc463          	bltz	s9,1027c <userstart+0x208>
+   10278:	00000c93          	li	s9,0
+   1027c:	01fd1d13          	slli	s10,s10,0x1f
+   10280:	000d4463          	bltz	s10,10288 <userstart+0x214>
+   10284:	00000d13          	li	s10,0
+   10288:	01fd9d93          	slli	s11,s11,0x1f
+   1028c:	000dc463          	bltz	s11,10294 <userstart+0x220>
+   10290:	00000d93          	li	s11,0
+   10294:	01fe1e13          	slli	t3,t3,0x1f
+   10298:	000e4463          	bltz	t3,102a0 <userstart+0x22c>
+   1029c:	00000e13          	li	t3,0
+   102a0:	01fe9e93          	slli	t4,t4,0x1f
+   102a4:	000ec463          	bltz	t4,102ac <userstart+0x238>
+   102a8:	00000e93          	li	t4,0
+   102ac:	01ff1f13          	slli	t5,t5,0x1f
+   102b0:	000f4463          	bltz	t5,102b8 <userstart+0x244>
+   102b4:	00000f13          	li	t5,0
+   102b8:	01ff9f93          	slli	t6,t6,0x1f
+   102bc:	000fc463          	bltz	t6,102c4 <userstart+0x250>
+   102c0:	00000f93          	li	t6,0
+   102c4:	0100a023          	sw	a6,0(ra)
+   102c8:	0110a223          	sw	a7,4(ra)
+   102cc:	0120a423          	sw	s2,8(ra)
+   102d0:	0130a623          	sw	s3,12(ra)
+   102d4:	0140a823          	sw	s4,16(ra)
+   102d8:	0150aa23          	sw	s5,20(ra)
+   102dc:	0160ac23          	sw	s6,24(ra)
+   102e0:	0170ae23          	sw	s7,28(ra)
+   102e4:	0380a023          	sw	s8,32(ra)
+   102e8:	0390a223          	sw	s9,36(ra)
+   102ec:	03a0a423          	sw	s10,40(ra)
+   102f0:	03b0a623          	sw	s11,44(ra)
+   102f4:	03c0a823          	sw	t3,48(ra)
+   102f8:	03d0aa23          	sw	t4,52(ra)
+   102fc:	03e0ac23          	sw	t5,56(ra)
+   10300:	03f0ae23          	sw	t6,60(ra)
+   10304:	00100513          	li	a0,1
+   10308:	00000073          	ecall
+
+0001030c <end_testcode>:
+   1030c:	00000073          	ecall

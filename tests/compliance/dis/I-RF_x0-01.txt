@@ -1,0 +1,107 @@
+
+elf/I-RF_x0-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011200 l    d  .data	00000000 .data
+00011500 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccMJ50XP.o
+00011210 l       .data	00000000 test_A1_res
+00011214 l       .data	00000000 test_A2_res
+00011218 l       .data	00000000 test_A3_res
+00011228 l       .data	00000000 test_A4_res
+00011200 l       .data	00000000 test_A5_data
+00011230 l       .data	00000000 test_A5_res
+00010184 l       .text	00000000 end_testcode
+00011a00 g       *ABS*	00000000 __global_pointer$
+00011240 g       .data	00000000 end_signature
+00011608 g       .tohost	00000000 __SDATA_BEGIN__
+00011300 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011210 g       .data	00000000 begin_signature
+00011608 g       .tohost	00000000 __BSS_END__
+00011400 g       .data	00000000 end_regstate
+00011608 g       .tohost	00000000 __bss_start
+00011200 g       .data	00000000 __DATA_BEGIN__
+00011608 g       .tohost	00000000 _edata
+00011608 g       .tohost	00000000 _end
+00011600 g       .tohost	00000000 fromhost
+00011500 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001f97          	auipc	t6,0x1
+   10084:	190f8f93          	addi	t6,t6,400 # 11210 <begin_signature>
+   10088:	abcde037          	lui	zero,0xabcde
+   1008c:	00100013          	li	zero,1
+   10090:	7f006013          	ori	zero,zero,2032
+   10094:	53f07013          	andi	zero,zero,1343
+   10098:	80304013          	xori	zero,zero,-2045
+   1009c:	00501013          	slli	zero,zero,0x5
+   100a0:	40205013          	srai	zero,zero,0x2
+   100a4:	00405013          	srli	zero,zero,0x4
+   100a8:	000fa023          	sw	zero,0(t6)
+   100ac:	00001f97          	auipc	t6,0x1
+   100b0:	168f8f93          	addi	t6,t6,360 # 11214 <test_A2_res>
+   100b4:	00100093          	li	ra,1
+   100b8:	7f000113          	li	sp,2032
+   100bc:	53f00193          	li	gp,1343
+   100c0:	80300213          	li	tp,-2045
+   100c4:	00500293          	li	t0,5
+   100c8:	00200313          	li	t1,2
+   100cc:	00400393          	li	t2,4
+   100d0:	01800413          	li	s0,24
+   100d4:	abcde017          	auipc	zero,0xabcde
+   100d8:	00100033          	add	zero,zero,ra
+   100dc:	00206033          	or	zero,zero,sp
+   100e0:	00307033          	and	zero,zero,gp
+   100e4:	00404033          	xor	zero,zero,tp
+   100e8:	00501033          	sll	zero,zero,t0
+   100ec:	40605033          	sra	zero,zero,t1
+   100f0:	00705033          	srl	zero,zero,t2
+   100f4:	40800033          	neg	zero,s0
+   100f8:	000fa023          	sw	zero,0(t6)
+   100fc:	00001f97          	auipc	t6,0x1
+   10100:	11cf8f93          	addi	t6,t6,284 # 11218 <test_A3_res>
+   10104:	00100093          	li	ra,1
+   10108:	00200113          	li	sp,2
+   1010c:	0020a033          	slt	zero,ra,sp
+   10110:	000fa023          	sw	zero,0(t6)
+   10114:	0020b033          	sltu	zero,ra,sp
+   10118:	000fa223          	sw	zero,4(t6)
+   1011c:	0020a013          	slti	zero,ra,2
+   10120:	000fa423          	sw	zero,8(t6)
+   10124:	0020b013          	sltiu	zero,ra,2
+   10128:	000fa623          	sw	zero,12(t6)
+   1012c:	00001f97          	auipc	t6,0x1
+   10130:	0fcf8f93          	addi	t6,t6,252 # 11228 <test_A4_res>
+   10134:	0040006f          	j	10138 <userstart+0xc4>
+   10138:	000fa023          	sw	zero,0(t6)
+   1013c:	00000097          	auipc	ra,0x0
+   10140:	00c08093          	addi	ra,ra,12 # 10148 <userstart+0xd4>
+   10144:	00008067          	ret
+   10148:	000fa223          	sw	zero,4(t6)
+   1014c:	00001097          	auipc	ra,0x1
+   10150:	0b408093          	addi	ra,ra,180 # 11200 <__DATA_BEGIN__>
+   10154:	00001f97          	auipc	t6,0x1
+   10158:	0dcf8f93          	addi	t6,t6,220 # 11230 <test_A5_res>
+   1015c:	0000a003          	lw	zero,0(ra)
+   10160:	000fa023          	sw	zero,0(t6)
+   10164:	00009003          	lh	zero,0(ra)
+   10168:	000fa223          	sw	zero,4(t6)
+   1016c:	00008003          	lb	zero,0(ra)
+   10170:	000fa423          	sw	zero,8(t6)
+   10174:	0000c003          	lbu	zero,0(ra)
+   10178:	000fa623          	sw	zero,12(t6)
+   1017c:	00100513          	li	a0,1
+   10180:	00000073          	ecall
+
+00010184 <end_testcode>:
+   10184:	00000073          	ecall

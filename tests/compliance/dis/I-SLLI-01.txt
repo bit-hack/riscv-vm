@@ -1,0 +1,165 @@
+
+elf/I-SLLI-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011300 l    d  .data	00000000 .data
+00011600 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccY9Fdnd.o
+00011300 l       .data	00000000 test_1_res
+00011314 l       .data	00000000 test_2_res
+00011328 l       .data	00000000 test_3_res
+0001133c l       .data	00000000 test_4_res
+00011350 l       .data	00000000 test_5_res
+00011364 l       .data	00000000 test_6_res
+00011378 l       .data	00000000 test_7_res
+00010268 l       .text	00000000 end_testcode
+00011b00 g       *ABS*	00000000 __global_pointer$
+00011390 g       .data	00000000 end_signature
+00011708 g       .tohost	00000000 __SDATA_BEGIN__
+00011400 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011300 g       .data	00000000 begin_signature
+00011708 g       .tohost	00000000 __BSS_END__
+00011500 g       .data	00000000 end_regstate
+00011708 g       .tohost	00000000 __bss_start
+00011300 g       .data	00000000 __DATA_BEGIN__
+00011708 g       .tohost	00000000 _edata
+00011708 g       .tohost	00000000 _end
+00011700 g       .tohost	00000000 fromhost
+00011600 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001297          	auipc	t0,0x1
+   10084:	28028293          	addi	t0,t0,640 # 11300 <__DATA_BEGIN__>
+   10088:	fff00f93          	li	t6,-1
+   1008c:	000f9013          	slli	zero,t6,0x0
+   10090:	0002a023          	sw	zero,0(t0)
+   10094:	00100f13          	li	t5,1
+   10098:	000f1093          	slli	ra,t5,0x0
+   1009c:	0012a223          	sw	ra,4(t0)
+   100a0:	00000e93          	li	t4,0
+   100a4:	001e9113          	slli	sp,t4,0x1
+   100a8:	0022a423          	sw	sp,8(t0)
+   100ac:	7ff00e13          	li	t3,2047
+   100b0:	004e1193          	slli	gp,t3,0x4
+   100b4:	0032a623          	sw	gp,12(t0)
+   100b8:	00000d93          	li	s11,0
+   100bc:	008d9213          	slli	tp,s11,0x8
+   100c0:	0042a823          	sw	tp,16(t0)
+   100c4:	00001097          	auipc	ra,0x1
+   100c8:	25008093          	addi	ra,ra,592 # 11314 <test_2_res>
+   100cc:	00001d37          	lui	s10,0x1
+   100d0:	800d0d13          	addi	s10,s10,-2048 # 800 <userstart-0xf874>
+   100d4:	01fd1293          	slli	t0,s10,0x1f
+   100d8:	0050a023          	sw	t0,0(ra)
+   100dc:	07654cb7          	lui	s9,0x7654
+   100e0:	321c8c93          	addi	s9,s9,801 # 7654321 <__global_pointer$+0x7642821>
+   100e4:	010c9313          	slli	t1,s9,0x10
+   100e8:	0060a223          	sw	t1,4(ra)
+   100ec:	80000c37          	lui	s8,0x80000
+   100f0:	fffc0c13          	addi	s8,s8,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   100f4:	001c1393          	slli	t2,s8,0x1
+   100f8:	0070a423          	sw	t2,8(ra)
+   100fc:	00100b93          	li	s7,1
+   10100:	000b9413          	slli	s0,s7,0x0
+   10104:	0080a623          	sw	s0,12(ra)
+   10108:	fff00b13          	li	s6,-1
+   1010c:	000b1493          	slli	s1,s6,0x0
+   10110:	0090a823          	sw	s1,16(ra)
+   10114:	00001097          	auipc	ra,0x1
+   10118:	21408093          	addi	ra,ra,532 # 11328 <test_3_res>
+   1011c:	00001ab7          	lui	s5,0x1
+   10120:	234a8a93          	addi	s5,s5,564 # 1234 <userstart-0xee40>
+   10124:	001a9513          	slli	a0,s5,0x1
+   10128:	00a0a023          	sw	a0,0(ra)
+   1012c:	80000a37          	lui	s4,0x80000
+   10130:	004a1593          	slli	a1,s4,0x4
+   10134:	00b0a223          	sw	a1,4(ra)
+   10138:	fffff9b7          	lui	s3,0xfffff
+   1013c:	dcc98993          	addi	s3,s3,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   10140:	00899613          	slli	a2,s3,0x8
+   10144:	00c0a423          	sw	a2,8(ra)
+   10148:	fff00913          	li	s2,-1
+   1014c:	01f91693          	slli	a3,s2,0x1f
+   10150:	00d0a623          	sw	a3,12(ra)
+   10154:	80100893          	li	a7,-2047
+   10158:	01089713          	slli	a4,a7,0x10
+   1015c:	00e0a823          	sw	a4,16(ra)
+   10160:	00001117          	auipc	sp,0x1
+   10164:	1dc10113          	addi	sp,sp,476 # 1133c <test_4_res>
+   10168:	00000813          	li	a6,0
+   1016c:	00181793          	slli	a5,a6,0x1
+   10170:	00f12023          	sw	a5,0(sp)
+   10174:	fff00793          	li	a5,-1
+   10178:	00079813          	slli	a6,a5,0x0
+   1017c:	01012223          	sw	a6,4(sp)
+   10180:	00100713          	li	a4,1
+   10184:	00071893          	slli	a7,a4,0x0
+   10188:	01112423          	sw	a7,8(sp)
+   1018c:	00000693          	li	a3,0
+   10190:	00169913          	slli	s2,a3,0x1
+   10194:	01212623          	sw	s2,12(sp)
+   10198:	7ff00613          	li	a2,2047
+   1019c:	00461993          	slli	s3,a2,0x4
+   101a0:	01312823          	sw	s3,16(sp)
+   101a4:	00001097          	auipc	ra,0x1
+   101a8:	1ac08093          	addi	ra,ra,428 # 11350 <test_5_res>
+   101ac:	00000593          	li	a1,0
+   101b0:	00859a13          	slli	s4,a1,0x8
+   101b4:	0140a023          	sw	s4,0(ra)
+   101b8:	00001537          	lui	a0,0x1
+   101bc:	80050513          	addi	a0,a0,-2048 # 800 <userstart-0xf874>
+   101c0:	01f51a93          	slli	s5,a0,0x1f
+   101c4:	0150a223          	sw	s5,4(ra)
+   101c8:	076544b7          	lui	s1,0x7654
+   101cc:	32148493          	addi	s1,s1,801 # 7654321 <__global_pointer$+0x7642821>
+   101d0:	01049b13          	slli	s6,s1,0x10
+   101d4:	0160a423          	sw	s6,8(ra)
+   101d8:	80000437          	lui	s0,0x80000
+   101dc:	fff40413          	addi	s0,s0,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   101e0:	00141b93          	slli	s7,s0,0x1
+   101e4:	0170a623          	sw	s7,12(ra)
+   101e8:	00100393          	li	t2,1
+   101ec:	00039c13          	slli	s8,t2,0x0
+   101f0:	0180a823          	sw	s8,16(ra)
+   101f4:	00001097          	auipc	ra,0x1
+   101f8:	17008093          	addi	ra,ra,368 # 11364 <test_6_res>
+   101fc:	fff00313          	li	t1,-1
+   10200:	00031c93          	slli	s9,t1,0x0
+   10204:	0190a023          	sw	s9,0(ra)
+   10208:	000012b7          	lui	t0,0x1
+   1020c:	23428293          	addi	t0,t0,564 # 1234 <userstart-0xee40>
+   10210:	00129d13          	slli	s10,t0,0x1
+   10214:	01a0a223          	sw	s10,4(ra)
+   10218:	80000237          	lui	tp,0x80000
+   1021c:	00421d93          	slli	s11,tp,0x4
+   10220:	01b0a423          	sw	s11,8(ra)
+   10224:	fffff1b7          	lui	gp,0xfffff
+   10228:	dcc18193          	addi	gp,gp,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   1022c:	00819e13          	slli	t3,gp,0x8
+   10230:	01c0a623          	sw	t3,12(ra)
+   10234:	fff00113          	li	sp,-1
+   10238:	01f11e93          	slli	t4,sp,0x1f
+   1023c:	01d0a823          	sw	t4,16(ra)
+   10240:	00001117          	auipc	sp,0x1
+   10244:	13810113          	addi	sp,sp,312 # 11378 <test_7_res>
+   10248:	80100093          	li	ra,-2047
+   1024c:	01009f13          	slli	t5,ra,0x10
+   10250:	01e12023          	sw	t5,0(sp)
+   10254:	00000013          	nop
+   10258:	00101f93          	slli	t6,zero,0x1
+   1025c:	01f12223          	sw	t6,4(sp)
+   10260:	00100513          	li	a0,1
+   10264:	00000073          	ecall
+
+00010268 <end_testcode>:
+   10268:	00000073          	ecall

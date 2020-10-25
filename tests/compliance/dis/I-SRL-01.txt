@@ -1,0 +1,197 @@
+
+elf/I-SRL-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011300 l    d  .data	00000000 .data
+00011600 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccg5dVph.o
+00011300 l       .data	00000000 test_1_res
+00011314 l       .data	00000000 test_2_res
+00011328 l       .data	00000000 test_3_res
+0001133c l       .data	00000000 test_4_res
+00011350 l       .data	00000000 test_5_res
+00011364 l       .data	00000000 test_6_res
+00011378 l       .data	00000000 test_7_res
+000102e8 l       .text	00000000 end_testcode
+00011b00 g       *ABS*	00000000 __global_pointer$
+00011390 g       .data	00000000 end_signature
+00011708 g       .tohost	00000000 __SDATA_BEGIN__
+00011400 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011300 g       .data	00000000 begin_signature
+00011708 g       .tohost	00000000 __BSS_END__
+00011500 g       .data	00000000 end_regstate
+00011708 g       .tohost	00000000 __bss_start
+00011300 g       .data	00000000 __DATA_BEGIN__
+00011708 g       .tohost	00000000 _edata
+00011708 g       .tohost	00000000 _end
+00011700 g       .tohost	00000000 fromhost
+00011600 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001297          	auipc	t0,0x1
+   10084:	28028293          	addi	t0,t0,640 # 11300 <__DATA_BEGIN__>
+   10088:	fff00f93          	li	t6,-1
+   1008c:	00000813          	li	a6,0
+   10090:	010fd033          	srl	zero,t6,a6
+   10094:	0002a023          	sw	zero,0(t0)
+   10098:	00100f13          	li	t5,1
+   1009c:	00000793          	li	a5,0
+   100a0:	00ff50b3          	srl	ra,t5,a5
+   100a4:	0012a223          	sw	ra,4(t0)
+   100a8:	00000e93          	li	t4,0
+   100ac:	00100713          	li	a4,1
+   100b0:	00eed133          	srl	sp,t4,a4
+   100b4:	0022a423          	sw	sp,8(t0)
+   100b8:	7ff00e13          	li	t3,2047
+   100bc:	00400693          	li	a3,4
+   100c0:	00de51b3          	srl	gp,t3,a3
+   100c4:	0032a623          	sw	gp,12(t0)
+   100c8:	00000d93          	li	s11,0
+   100cc:	00800613          	li	a2,8
+   100d0:	00cdd233          	srl	tp,s11,a2
+   100d4:	0042a823          	sw	tp,16(t0)
+   100d8:	00001097          	auipc	ra,0x1
+   100dc:	23c08093          	addi	ra,ra,572 # 11314 <test_2_res>
+   100e0:	00001d37          	lui	s10,0x1
+   100e4:	800d0d13          	addi	s10,s10,-2048 # 800 <userstart-0xf874>
+   100e8:	01f00593          	li	a1,31
+   100ec:	00bd52b3          	srl	t0,s10,a1
+   100f0:	0050a023          	sw	t0,0(ra)
+   100f4:	07654cb7          	lui	s9,0x7654
+   100f8:	321c8c93          	addi	s9,s9,801 # 7654321 <__global_pointer$+0x7642821>
+   100fc:	01000513          	li	a0,16
+   10100:	00acd333          	srl	t1,s9,a0
+   10104:	0060a223          	sw	t1,4(ra)
+   10108:	80000c37          	lui	s8,0x80000
+   1010c:	fffc0c13          	addi	s8,s8,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   10110:	00100493          	li	s1,1
+   10114:	009c53b3          	srl	t2,s8,s1
+   10118:	0070a423          	sw	t2,8(ra)
+   1011c:	00100b93          	li	s7,1
+   10120:	00000413          	li	s0,0
+   10124:	008bd433          	srl	s0,s7,s0
+   10128:	0080a623          	sw	s0,12(ra)
+   1012c:	fff00b13          	li	s6,-1
+   10130:	00000393          	li	t2,0
+   10134:	007b54b3          	srl	s1,s6,t2
+   10138:	0090a823          	sw	s1,16(ra)
+   1013c:	00001097          	auipc	ra,0x1
+   10140:	1ec08093          	addi	ra,ra,492 # 11328 <test_3_res>
+   10144:	00001ab7          	lui	s5,0x1
+   10148:	234a8a93          	addi	s5,s5,564 # 1234 <userstart-0xee40>
+   1014c:	00100313          	li	t1,1
+   10150:	006ad533          	srl	a0,s5,t1
+   10154:	00a0a023          	sw	a0,0(ra)
+   10158:	80000a37          	lui	s4,0x80000
+   1015c:	00400293          	li	t0,4
+   10160:	005a55b3          	srl	a1,s4,t0
+   10164:	00b0a223          	sw	a1,4(ra)
+   10168:	fffff9b7          	lui	s3,0xfffff
+   1016c:	dcc98993          	addi	s3,s3,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   10170:	00800213          	li	tp,8
+   10174:	0049d633          	srl	a2,s3,tp
+   10178:	00c0a423          	sw	a2,8(ra)
+   1017c:	fff00913          	li	s2,-1
+   10180:	01f00193          	li	gp,31
+   10184:	003956b3          	srl	a3,s2,gp
+   10188:	00d0a623          	sw	a3,12(ra)
+   1018c:	80100893          	li	a7,-2047
+   10190:	01000113          	li	sp,16
+   10194:	0028d733          	srl	a4,a7,sp
+   10198:	00e0a823          	sw	a4,16(ra)
+   1019c:	00001117          	auipc	sp,0x1
+   101a0:	1a010113          	addi	sp,sp,416 # 1133c <test_4_res>
+   101a4:	00000813          	li	a6,0
+   101a8:	00100093          	li	ra,1
+   101ac:	001857b3          	srl	a5,a6,ra
+   101b0:	00f12023          	sw	a5,0(sp)
+   101b4:	fff00793          	li	a5,-1
+   101b8:	00000013          	nop
+   101bc:	0007d833          	srl	a6,a5,zero
+   101c0:	01012223          	sw	a6,4(sp)
+   101c4:	00100713          	li	a4,1
+   101c8:	00000f93          	li	t6,0
+   101cc:	01f758b3          	srl	a7,a4,t6
+   101d0:	01112423          	sw	a7,8(sp)
+   101d4:	00000693          	li	a3,0
+   101d8:	00100f13          	li	t5,1
+   101dc:	01e6d933          	srl	s2,a3,t5
+   101e0:	01212623          	sw	s2,12(sp)
+   101e4:	7ff00613          	li	a2,2047
+   101e8:	00400e93          	li	t4,4
+   101ec:	01d659b3          	srl	s3,a2,t4
+   101f0:	01312823          	sw	s3,16(sp)
+   101f4:	00001097          	auipc	ra,0x1
+   101f8:	15c08093          	addi	ra,ra,348 # 11350 <test_5_res>
+   101fc:	00000593          	li	a1,0
+   10200:	00800e13          	li	t3,8
+   10204:	01c5da33          	srl	s4,a1,t3
+   10208:	0140a023          	sw	s4,0(ra)
+   1020c:	00001537          	lui	a0,0x1
+   10210:	80050513          	addi	a0,a0,-2048 # 800 <userstart-0xf874>
+   10214:	01f00d93          	li	s11,31
+   10218:	01b55ab3          	srl	s5,a0,s11
+   1021c:	0150a223          	sw	s5,4(ra)
+   10220:	076544b7          	lui	s1,0x7654
+   10224:	32148493          	addi	s1,s1,801 # 7654321 <__global_pointer$+0x7642821>
+   10228:	01000d13          	li	s10,16
+   1022c:	01a4db33          	srl	s6,s1,s10
+   10230:	0160a423          	sw	s6,8(ra)
+   10234:	80000437          	lui	s0,0x80000
+   10238:	fff40413          	addi	s0,s0,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   1023c:	00100c93          	li	s9,1
+   10240:	01945bb3          	srl	s7,s0,s9
+   10244:	0170a623          	sw	s7,12(ra)
+   10248:	00100393          	li	t2,1
+   1024c:	00000c13          	li	s8,0
+   10250:	0183dc33          	srl	s8,t2,s8
+   10254:	0180a823          	sw	s8,16(ra)
+   10258:	00001097          	auipc	ra,0x1
+   1025c:	10c08093          	addi	ra,ra,268 # 11364 <test_6_res>
+   10260:	fff00313          	li	t1,-1
+   10264:	00000b93          	li	s7,0
+   10268:	01735cb3          	srl	s9,t1,s7
+   1026c:	0190a023          	sw	s9,0(ra)
+   10270:	000012b7          	lui	t0,0x1
+   10274:	23428293          	addi	t0,t0,564 # 1234 <userstart-0xee40>
+   10278:	00100b13          	li	s6,1
+   1027c:	0162dd33          	srl	s10,t0,s6
+   10280:	01a0a223          	sw	s10,4(ra)
+   10284:	80000237          	lui	tp,0x80000
+   10288:	00400a93          	li	s5,4
+   1028c:	01525db3          	srl	s11,tp,s5
+   10290:	01b0a423          	sw	s11,8(ra)
+   10294:	fffff1b7          	lui	gp,0xfffff
+   10298:	dcc18193          	addi	gp,gp,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   1029c:	00800a13          	li	s4,8
+   102a0:	0141de33          	srl	t3,gp,s4
+   102a4:	01c0a623          	sw	t3,12(ra)
+   102a8:	fff00113          	li	sp,-1
+   102ac:	01f00993          	li	s3,31
+   102b0:	01315eb3          	srl	t4,sp,s3
+   102b4:	01d0a823          	sw	t4,16(ra)
+   102b8:	00001117          	auipc	sp,0x1
+   102bc:	0c010113          	addi	sp,sp,192 # 11378 <test_7_res>
+   102c0:	80100093          	li	ra,-2047
+   102c4:	01000913          	li	s2,16
+   102c8:	0120df33          	srl	t5,ra,s2
+   102cc:	01e12023          	sw	t5,0(sp)
+   102d0:	00000013          	nop
+   102d4:	00100893          	li	a7,1
+   102d8:	01105fb3          	srl	t6,zero,a7
+   102dc:	01f12223          	sw	t6,4(sp)
+   102e0:	00100513          	li	a0,1
+   102e4:	00000073          	ecall
+
+000102e8 <end_testcode>:
+   102e8:	00000073          	ecall

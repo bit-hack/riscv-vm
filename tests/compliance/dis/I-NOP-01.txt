@@ -1,0 +1,120 @@
+
+elf/I-NOP-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011200 l    d  .data	00000000 .data
+00011500 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccM0ZPJ1.o
+00011200 l       .data	00000000 test_A1_res
+0001127c l       .data	00000000 test_A2_res
+000101c8 l       .text	00000000 end_testcode
+00011a00 g       *ABS*	00000000 __global_pointer$
+00011280 g       .data	00000000 end_signature
+00011608 g       .tohost	00000000 __SDATA_BEGIN__
+00011300 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011200 g       .data	00000000 begin_signature
+00011608 g       .tohost	00000000 __BSS_END__
+00011400 g       .data	00000000 end_regstate
+00011608 g       .tohost	00000000 __bss_start
+00011200 g       .data	00000000 __DATA_BEGIN__
+00011608 g       .tohost	00000000 _edata
+00011608 g       .tohost	00000000 _end
+00011600 g       .tohost	00000000 fromhost
+00011500 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001097          	auipc	ra,0x1
+   10084:	18008093          	addi	ra,ra,384 # 11200 <__DATA_BEGIN__>
+   10088:	00200113          	li	sp,2
+   1008c:	00300193          	li	gp,3
+   10090:	00400213          	li	tp,4
+   10094:	00500293          	li	t0,5
+   10098:	00600313          	li	t1,6
+   1009c:	00700393          	li	t2,7
+   100a0:	00800413          	li	s0,8
+   100a4:	00900493          	li	s1,9
+   100a8:	00a00513          	li	a0,10
+   100ac:	00b00593          	li	a1,11
+   100b0:	00c00613          	li	a2,12
+   100b4:	00d00693          	li	a3,13
+   100b8:	00e00713          	li	a4,14
+   100bc:	00f00793          	li	a5,15
+   100c0:	01000813          	li	a6,16
+   100c4:	01100893          	li	a7,17
+   100c8:	01200913          	li	s2,18
+   100cc:	01300993          	li	s3,19
+   100d0:	01400a13          	li	s4,20
+   100d4:	01500a93          	li	s5,21
+   100d8:	01600b13          	li	s6,22
+   100dc:	01700b93          	li	s7,23
+   100e0:	01800c13          	li	s8,24
+   100e4:	01900c93          	li	s9,25
+   100e8:	01a00d13          	li	s10,26
+   100ec:	01b00d93          	li	s11,27
+   100f0:	01c00e13          	li	t3,28
+   100f4:	01d00e93          	li	t4,29
+   100f8:	01e00f13          	li	t5,30
+   100fc:	01f00f93          	li	t6,31
+   10100:	00000013          	nop
+   10104:	00000013          	nop
+   10108:	00000013          	nop
+   1010c:	00000013          	nop
+   10110:	00000013          	nop
+   10114:	00000013          	nop
+   10118:	0000a023          	sw	zero,0(ra)
+   1011c:	0020a223          	sw	sp,4(ra)
+   10120:	0030a423          	sw	gp,8(ra)
+   10124:	0040a623          	sw	tp,12(ra)
+   10128:	0050a823          	sw	t0,16(ra)
+   1012c:	0060aa23          	sw	t1,20(ra)
+   10130:	0070ac23          	sw	t2,24(ra)
+   10134:	0080ae23          	sw	s0,28(ra)
+   10138:	0290a023          	sw	s1,32(ra)
+   1013c:	02a0a223          	sw	a0,36(ra)
+   10140:	02b0a423          	sw	a1,40(ra)
+   10144:	02c0a623          	sw	a2,44(ra)
+   10148:	02d0a823          	sw	a3,48(ra)
+   1014c:	02e0aa23          	sw	a4,52(ra)
+   10150:	02f0ac23          	sw	a5,56(ra)
+   10154:	0300ae23          	sw	a6,60(ra)
+   10158:	0510a023          	sw	a7,64(ra)
+   1015c:	0520a223          	sw	s2,68(ra)
+   10160:	0530a423          	sw	s3,72(ra)
+   10164:	0540a623          	sw	s4,76(ra)
+   10168:	0550a823          	sw	s5,80(ra)
+   1016c:	0560aa23          	sw	s6,84(ra)
+   10170:	0570ac23          	sw	s7,88(ra)
+   10174:	0580ae23          	sw	s8,92(ra)
+   10178:	0790a023          	sw	s9,96(ra)
+   1017c:	07a0a223          	sw	s10,100(ra)
+   10180:	07b0a423          	sw	s11,104(ra)
+   10184:	07c0a623          	sw	t3,108(ra)
+   10188:	07d0a823          	sw	t4,112(ra)
+   1018c:	07e0aa23          	sw	t5,116(ra)
+   10190:	07f0ac23          	sw	t6,120(ra)
+   10194:	00001197          	auipc	gp,0x1
+   10198:	0e818193          	addi	gp,gp,232 # 1127c <test_A2_res>
+   1019c:	00000417          	auipc	s0,0x0
+   101a0:	00000013          	nop
+   101a4:	00000013          	nop
+   101a8:	00000013          	nop
+   101ac:	00000013          	nop
+   101b0:	00000013          	nop
+   101b4:	00000497          	auipc	s1,0x0
+   101b8:	408484b3          	sub	s1,s1,s0
+   101bc:	0091a023          	sw	s1,0(gp) # 11a00 <__global_pointer$>
+   101c0:	00100513          	li	a0,1
+   101c4:	00000073          	ecall
+
+000101c8 <end_testcode>:
+   101c8:	00000073          	ecall

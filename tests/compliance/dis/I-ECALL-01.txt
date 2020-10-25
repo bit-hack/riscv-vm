@@ -1,0 +1,65 @@
+
+elf/I-ECALL-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011100 l    d  .data	00000000 .data
+00011400 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccI61FWE.o
+000100ac l       .text	00000000 _trap_handler
+00011100 l       .data	00000000 test_A_res_exc
+000100d0 l       .text	00000000 test_end
+000100d8 l       .text	00000000 end_testcode
+00011900 g       *ABS*	00000000 __global_pointer$
+00011110 g       .data	00000000 end_signature
+00011508 g       .tohost	00000000 __SDATA_BEGIN__
+00011200 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011100 g       .data	00000000 begin_signature
+00011508 g       .tohost	00000000 __BSS_END__
+00011300 g       .data	00000000 end_regstate
+00011508 g       .tohost	00000000 __bss_start
+00011100 g       .data	00000000 __DATA_BEGIN__
+00011508 g       .tohost	00000000 _edata
+00011508 g       .tohost	00000000 _end
+00011500 g       .tohost	00000000 fromhost
+00011400 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00000097          	auipc	ra,0x0
+   10084:	02c08093          	addi	ra,ra,44 # 100ac <_trap_handler>
+   10088:	30509ff3          	csrrw	t6,mtvec,ra
+   1008c:	00001097          	auipc	ra,0x1
+   10090:	07408093          	addi	ra,ra,116 # 11100 <__DATA_BEGIN__>
+   10094:	11111137          	lui	sp,0x11111
+   10098:	11110113          	addi	sp,sp,273 # 11111111 <__global_pointer$+0x110ff811>
+   1009c:	00000073          	ecall
+   100a0:	0000a023          	sw	zero,0(ra)
+   100a4:	305f9073          	csrw	mtvec,t6
+   100a8:	0280006f          	j	100d0 <test_end>
+
+000100ac <_trap_handler>:
+   100ac:	34102f73          	csrr	t5,mepc
+   100b0:	004f0f13          	addi	t5,t5,4
+   100b4:	341f1073          	csrw	mepc,t5
+   100b8:	34202f73          	csrr	t5,mcause
+   100bc:	01e0a023          	sw	t5,0(ra)
+   100c0:	0020a223          	sw	sp,4(ra)
+   100c4:	0000a423          	sw	zero,8(ra)
+   100c8:	00c08093          	addi	ra,ra,12
+   100cc:	30200073          	mret
+
+000100d0 <test_end>:
+   100d0:	00100513          	li	a0,1
+   100d4:	00000073          	ecall
+
+000100d8 <end_testcode>:
+   100d8:	00000073          	ecall

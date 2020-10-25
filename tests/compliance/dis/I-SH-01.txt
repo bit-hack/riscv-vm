@@ -1,0 +1,197 @@
+
+elf/I-SH-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011300 l    d  .data	00000000 .data
+00011600 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\cckndLHv.o
+00011304 l       .data	00000000 test_1_res
+00011318 l       .data	00000000 test_2_res
+0001132c l       .data	00000000 test_3_res
+00011340 l       .data	00000000 test_4_res
+00011354 l       .data	00000000 test_5_res
+00011368 l       .data	00000000 test_6_res
+0001137c l       .data	00000000 test_7_res
+000102e8 l       .text	00000000 end_testcode
+00011b00 g       *ABS*	00000000 __global_pointer$
+00011390 g       .data	00000000 end_signature
+00011708 g       .tohost	00000000 __SDATA_BEGIN__
+00011400 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011300 g       .data	00000000 begin_signature
+00011708 g       .tohost	00000000 __BSS_END__
+00011500 g       .data	00000000 end_regstate
+00011708 g       .tohost	00000000 __bss_start
+00011300 g       .data	00000000 __DATA_BEGIN__
+00011708 g       .tohost	00000000 _edata
+00011708 g       .tohost	00000000 _end
+00011700 g       .tohost	00000000 fromhost
+00011600 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001297          	auipc	t0,0x1
+   10084:	28428293          	addi	t0,t0,644 # 11304 <test_1_res>
+   10088:	00029023          	sh	zero,0(t0)
+   1008c:	fff00813          	li	a6,-1
+   10090:	00028f93          	mv	t6,t0
+   10094:	010f9023          	sh	a6,0(t6)
+   10098:	fe029f23          	sh	zero,-2(t0)
+   1009c:	00100793          	li	a5,1
+   100a0:	00028f13          	mv	t5,t0
+   100a4:	feff1f23          	sh	a5,-2(t5)
+   100a8:	00029123          	sh	zero,2(t0)
+   100ac:	00000713          	li	a4,0
+   100b0:	00028e93          	mv	t4,t0
+   100b4:	00ee9123          	sh	a4,2(t4)
+   100b8:	fe029e23          	sh	zero,-4(t0)
+   100bc:	7ff00693          	li	a3,2047
+   100c0:	00028e13          	mv	t3,t0
+   100c4:	fede1e23          	sh	a3,-4(t3)
+   100c8:	00029123          	sh	zero,2(t0)
+   100cc:	00000613          	li	a2,0
+   100d0:	00028d93          	mv	s11,t0
+   100d4:	00cd9123          	sh	a2,2(s11)
+   100d8:	00001097          	auipc	ra,0x1
+   100dc:	24008093          	addi	ra,ra,576 # 11318 <test_2_res>
+   100e0:	00009223          	sh	zero,4(ra)
+   100e4:	000015b7          	lui	a1,0x1
+   100e8:	80058593          	addi	a1,a1,-2048 # 800 <userstart-0xf874>
+   100ec:	00008d13          	mv	s10,ra
+   100f0:	00bd1223          	sh	a1,4(s10)
+   100f4:	00009023          	sh	zero,0(ra)
+   100f8:	07654537          	lui	a0,0x7654
+   100fc:	32150513          	addi	a0,a0,801 # 7654321 <__global_pointer$+0x7642821>
+   10100:	00008c93          	mv	s9,ra
+   10104:	00ac9023          	sh	a0,0(s9)
+   10108:	00009023          	sh	zero,0(ra)
+   1010c:	800004b7          	lui	s1,0x80000
+   10110:	fff48493          	addi	s1,s1,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   10114:	00008c13          	mv	s8,ra
+   10118:	009c1023          	sh	s1,0(s8)
+   1011c:	00009023          	sh	zero,0(ra)
+   10120:	00100413          	li	s0,1
+   10124:	00008b93          	mv	s7,ra
+   10128:	008b9023          	sh	s0,0(s7)
+   1012c:	fe009f23          	sh	zero,-2(ra)
+   10130:	fff00393          	li	t2,-1
+   10134:	00008b13          	mv	s6,ra
+   10138:	fe7b1f23          	sh	t2,-2(s6)
+   1013c:	00001097          	auipc	ra,0x1
+   10140:	1f008093          	addi	ra,ra,496 # 1132c <test_3_res>
+   10144:	00009123          	sh	zero,2(ra)
+   10148:	00001337          	lui	t1,0x1
+   1014c:	23430313          	addi	t1,t1,564 # 1234 <userstart-0xee40>
+   10150:	00008a93          	mv	s5,ra
+   10154:	006a9123          	sh	t1,2(s5)
+   10158:	fe009e23          	sh	zero,-4(ra)
+   1015c:	800002b7          	lui	t0,0x80000
+   10160:	00008a13          	mv	s4,ra
+   10164:	fe5a1e23          	sh	t0,-4(s4)
+   10168:	00009123          	sh	zero,2(ra)
+   1016c:	fffff237          	lui	tp,0xfffff
+   10170:	dcc20213          	addi	tp,tp,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   10174:	00008993          	mv	s3,ra
+   10178:	00499123          	sh	tp,2(s3)
+   1017c:	00009223          	sh	zero,4(ra)
+   10180:	fff00193          	li	gp,-1
+   10184:	00008913          	mv	s2,ra
+   10188:	00391223          	sh	gp,4(s2)
+   1018c:	00009023          	sh	zero,0(ra)
+   10190:	80100113          	li	sp,-2047
+   10194:	00008893          	mv	a7,ra
+   10198:	00289023          	sh	sp,0(a7)
+   1019c:	00001117          	auipc	sp,0x1
+   101a0:	1a410113          	addi	sp,sp,420 # 11340 <test_4_res>
+   101a4:	00011023          	sh	zero,0(sp)
+   101a8:	00000093          	li	ra,0
+   101ac:	00010813          	mv	a6,sp
+   101b0:	00181023          	sh	ra,0(a6)
+   101b4:	00011023          	sh	zero,0(sp)
+   101b8:	fff00013          	li	zero,-1
+   101bc:	00010793          	mv	a5,sp
+   101c0:	00079023          	sh	zero,0(a5)
+   101c4:	fe011f23          	sh	zero,-2(sp)
+   101c8:	00100f93          	li	t6,1
+   101cc:	00010713          	mv	a4,sp
+   101d0:	fff71f23          	sh	t6,-2(a4)
+   101d4:	00011123          	sh	zero,2(sp)
+   101d8:	00000f13          	li	t5,0
+   101dc:	00010693          	mv	a3,sp
+   101e0:	01e69123          	sh	t5,2(a3)
+   101e4:	fe011e23          	sh	zero,-4(sp)
+   101e8:	7ff00e93          	li	t4,2047
+   101ec:	00010613          	mv	a2,sp
+   101f0:	ffd61e23          	sh	t4,-4(a2)
+   101f4:	00001097          	auipc	ra,0x1
+   101f8:	16008093          	addi	ra,ra,352 # 11354 <test_5_res>
+   101fc:	00009123          	sh	zero,2(ra)
+   10200:	00000e13          	li	t3,0
+   10204:	00008593          	mv	a1,ra
+   10208:	01c59123          	sh	t3,2(a1)
+   1020c:	00009223          	sh	zero,4(ra)
+   10210:	00001db7          	lui	s11,0x1
+   10214:	800d8d93          	addi	s11,s11,-2048 # 800 <userstart-0xf874>
+   10218:	00008513          	mv	a0,ra
+   1021c:	01b51223          	sh	s11,4(a0)
+   10220:	00009023          	sh	zero,0(ra)
+   10224:	07654d37          	lui	s10,0x7654
+   10228:	321d0d13          	addi	s10,s10,801 # 7654321 <__global_pointer$+0x7642821>
+   1022c:	00008493          	mv	s1,ra
+   10230:	01a49023          	sh	s10,0(s1)
+   10234:	00009023          	sh	zero,0(ra)
+   10238:	80000cb7          	lui	s9,0x80000
+   1023c:	fffc8c93          	addi	s9,s9,-1 # 7fffffff <__global_pointer$+0x7ffee4ff>
+   10240:	00008413          	mv	s0,ra
+   10244:	01941023          	sh	s9,0(s0)
+   10248:	00009023          	sh	zero,0(ra)
+   1024c:	00100c13          	li	s8,1
+   10250:	00008393          	mv	t2,ra
+   10254:	01839023          	sh	s8,0(t2)
+   10258:	00001097          	auipc	ra,0x1
+   1025c:	11008093          	addi	ra,ra,272 # 11368 <test_6_res>
+   10260:	fe009f23          	sh	zero,-2(ra)
+   10264:	fff00b93          	li	s7,-1
+   10268:	00008313          	mv	t1,ra
+   1026c:	ff731f23          	sh	s7,-2(t1)
+   10270:	00009123          	sh	zero,2(ra)
+   10274:	00001b37          	lui	s6,0x1
+   10278:	234b0b13          	addi	s6,s6,564 # 1234 <userstart-0xee40>
+   1027c:	00008293          	mv	t0,ra
+   10280:	01629123          	sh	s6,2(t0) # 80000002 <__global_pointer$+0x7ffee502>
+   10284:	fe009e23          	sh	zero,-4(ra)
+   10288:	80000ab7          	lui	s5,0x80000
+   1028c:	00008213          	mv	tp,ra
+   10290:	ff521e23          	sh	s5,-4(tp) # fffffffc <__global_pointer$+0xfffee4fc>
+   10294:	00009123          	sh	zero,2(ra)
+   10298:	fffffa37          	lui	s4,0xfffff
+   1029c:	dcca0a13          	addi	s4,s4,-564 # ffffedcc <__global_pointer$+0xfffed2cc>
+   102a0:	00008193          	mv	gp,ra
+   102a4:	01419123          	sh	s4,2(gp) # 11b02 <__global_pointer$+0x2>
+   102a8:	00009223          	sh	zero,4(ra)
+   102ac:	fff00993          	li	s3,-1
+   102b0:	00008113          	mv	sp,ra
+   102b4:	01311223          	sh	s3,4(sp)
+   102b8:	00001117          	auipc	sp,0x1
+   102bc:	0c410113          	addi	sp,sp,196 # 1137c <test_7_res>
+   102c0:	00011023          	sh	zero,0(sp)
+   102c4:	80100913          	li	s2,-2047
+   102c8:	00010093          	mv	ra,sp
+   102cc:	01209023          	sh	s2,0(ra)
+   102d0:	00011023          	sh	zero,0(sp)
+   102d4:	00000893          	li	a7,0
+   102d8:	00010093          	mv	ra,sp
+   102dc:	01109023          	sh	a7,0(ra)
+   102e0:	00100513          	li	a0,1
+   102e4:	00000073          	ecall
+
+000102e8 <end_testcode>:
+   102e8:	00000073          	ecall

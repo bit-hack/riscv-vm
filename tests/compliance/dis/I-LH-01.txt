@@ -1,0 +1,189 @@
+
+elf/I-LH-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011300 l    d  .data	00000000 .data
+00011600 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\ccITbyeg.o
+00011330 l       .data	00000000 test_1_res
+00011318 l       .data	00000000 test_data
+00011344 l       .data	00000000 test_2_res
+00011358 l       .data	00000000 test_3_res
+0001136c l       .data	00000000 test_4_res
+00011380 l       .data	00000000 test_5_res
+00011394 l       .data	00000000 test_6_res
+000113a8 l       .data	00000000 test_7_res
+000102c0 l       .text	00000000 end_testcode
+00011300 l       .data	00000000 test_data_start
+00011b00 g       *ABS*	00000000 __global_pointer$
+000113c0 g       .data	00000000 end_signature
+00011708 g       .tohost	00000000 __SDATA_BEGIN__
+00011400 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011330 g       .data	00000000 begin_signature
+00011708 g       .tohost	00000000 __BSS_END__
+00011500 g       .data	00000000 end_regstate
+00011708 g       .tohost	00000000 __bss_start
+00011300 g       .data	00000000 __DATA_BEGIN__
+00011708 g       .tohost	00000000 _edata
+00011708 g       .tohost	00000000 _end
+00011700 g       .tohost	00000000 fromhost
+00011600 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001297          	auipc	t0,0x1
+   10084:	2b028293          	addi	t0,t0,688 # 11330 <begin_signature>
+   10088:	00001f97          	auipc	t6,0x1
+   1008c:	290f8f93          	addi	t6,t6,656 # 11318 <test_data>
+   10090:	000f9003          	lh	zero,0(t6)
+   10094:	0002a023          	sw	zero,0(t0)
+   10098:	00001f17          	auipc	t5,0x1
+   1009c:	280f0f13          	addi	t5,t5,640 # 11318 <test_data>
+   100a0:	ffef1083          	lh	ra,-2(t5)
+   100a4:	0012a223          	sw	ra,4(t0)
+   100a8:	00001e97          	auipc	t4,0x1
+   100ac:	270e8e93          	addi	t4,t4,624 # 11318 <test_data>
+   100b0:	002e9103          	lh	sp,2(t4)
+   100b4:	0022a423          	sw	sp,8(t0)
+   100b8:	00001e17          	auipc	t3,0x1
+   100bc:	260e0e13          	addi	t3,t3,608 # 11318 <test_data>
+   100c0:	ffce1183          	lh	gp,-4(t3)
+   100c4:	0032a623          	sw	gp,12(t0)
+   100c8:	00001d97          	auipc	s11,0x1
+   100cc:	250d8d93          	addi	s11,s11,592 # 11318 <test_data>
+   100d0:	002d9203          	lh	tp,2(s11)
+   100d4:	0042a823          	sw	tp,16(t0)
+   100d8:	00001097          	auipc	ra,0x1
+   100dc:	26c08093          	addi	ra,ra,620 # 11344 <test_2_res>
+   100e0:	00001d17          	auipc	s10,0x1
+   100e4:	238d0d13          	addi	s10,s10,568 # 11318 <test_data>
+   100e8:	004d1283          	lh	t0,4(s10)
+   100ec:	0050a023          	sw	t0,0(ra)
+   100f0:	00001c97          	auipc	s9,0x1
+   100f4:	228c8c93          	addi	s9,s9,552 # 11318 <test_data>
+   100f8:	000c9303          	lh	t1,0(s9)
+   100fc:	0060a223          	sw	t1,4(ra)
+   10100:	00001c17          	auipc	s8,0x1
+   10104:	218c0c13          	addi	s8,s8,536 # 11318 <test_data>
+   10108:	000c1383          	lh	t2,0(s8)
+   1010c:	0070a423          	sw	t2,8(ra)
+   10110:	00001b97          	auipc	s7,0x1
+   10114:	208b8b93          	addi	s7,s7,520 # 11318 <test_data>
+   10118:	000b9403          	lh	s0,0(s7)
+   1011c:	0080a623          	sw	s0,12(ra)
+   10120:	00001b17          	auipc	s6,0x1
+   10124:	1f8b0b13          	addi	s6,s6,504 # 11318 <test_data>
+   10128:	ffeb1483          	lh	s1,-2(s6)
+   1012c:	0090a823          	sw	s1,16(ra)
+   10130:	00001097          	auipc	ra,0x1
+   10134:	22808093          	addi	ra,ra,552 # 11358 <test_3_res>
+   10138:	00001a97          	auipc	s5,0x1
+   1013c:	1e0a8a93          	addi	s5,s5,480 # 11318 <test_data>
+   10140:	002a9503          	lh	a0,2(s5)
+   10144:	00a0a023          	sw	a0,0(ra)
+   10148:	00001a17          	auipc	s4,0x1
+   1014c:	1d0a0a13          	addi	s4,s4,464 # 11318 <test_data>
+   10150:	ffca1583          	lh	a1,-4(s4)
+   10154:	00b0a223          	sw	a1,4(ra)
+   10158:	00001997          	auipc	s3,0x1
+   1015c:	1c098993          	addi	s3,s3,448 # 11318 <test_data>
+   10160:	00299603          	lh	a2,2(s3)
+   10164:	00c0a423          	sw	a2,8(ra)
+   10168:	00001917          	auipc	s2,0x1
+   1016c:	1b090913          	addi	s2,s2,432 # 11318 <test_data>
+   10170:	00491683          	lh	a3,4(s2)
+   10174:	00d0a623          	sw	a3,12(ra)
+   10178:	00001897          	auipc	a7,0x1
+   1017c:	1a088893          	addi	a7,a7,416 # 11318 <test_data>
+   10180:	00089703          	lh	a4,0(a7)
+   10184:	00e0a823          	sw	a4,16(ra)
+   10188:	00001117          	auipc	sp,0x1
+   1018c:	1e410113          	addi	sp,sp,484 # 1136c <test_4_res>
+   10190:	00001817          	auipc	a6,0x1
+   10194:	18880813          	addi	a6,a6,392 # 11318 <test_data>
+   10198:	00081783          	lh	a5,0(a6)
+   1019c:	00f12023          	sw	a5,0(sp)
+   101a0:	00001797          	auipc	a5,0x1
+   101a4:	17878793          	addi	a5,a5,376 # 11318 <test_data>
+   101a8:	00079803          	lh	a6,0(a5)
+   101ac:	01012223          	sw	a6,4(sp)
+   101b0:	00001717          	auipc	a4,0x1
+   101b4:	16870713          	addi	a4,a4,360 # 11318 <test_data>
+   101b8:	ffe71883          	lh	a7,-2(a4)
+   101bc:	01112423          	sw	a7,8(sp)
+   101c0:	00001697          	auipc	a3,0x1
+   101c4:	15868693          	addi	a3,a3,344 # 11318 <test_data>
+   101c8:	00269903          	lh	s2,2(a3)
+   101cc:	01212623          	sw	s2,12(sp)
+   101d0:	00001617          	auipc	a2,0x1
+   101d4:	14860613          	addi	a2,a2,328 # 11318 <test_data>
+   101d8:	ffc61983          	lh	s3,-4(a2)
+   101dc:	01312823          	sw	s3,16(sp)
+   101e0:	00001097          	auipc	ra,0x1
+   101e4:	1a008093          	addi	ra,ra,416 # 11380 <test_5_res>
+   101e8:	00001597          	auipc	a1,0x1
+   101ec:	13058593          	addi	a1,a1,304 # 11318 <test_data>
+   101f0:	00259a03          	lh	s4,2(a1)
+   101f4:	0140a023          	sw	s4,0(ra)
+   101f8:	00001517          	auipc	a0,0x1
+   101fc:	12050513          	addi	a0,a0,288 # 11318 <test_data>
+   10200:	00451a83          	lh	s5,4(a0)
+   10204:	0150a223          	sw	s5,4(ra)
+   10208:	00001497          	auipc	s1,0x1
+   1020c:	11048493          	addi	s1,s1,272 # 11318 <test_data>
+   10210:	00049b03          	lh	s6,0(s1)
+   10214:	0160a423          	sw	s6,8(ra)
+   10218:	00001417          	auipc	s0,0x1
+   1021c:	10040413          	addi	s0,s0,256 # 11318 <test_data>
+   10220:	00041b83          	lh	s7,0(s0)
+   10224:	0170a623          	sw	s7,12(ra)
+   10228:	00001397          	auipc	t2,0x1
+   1022c:	0f038393          	addi	t2,t2,240 # 11318 <test_data>
+   10230:	00039c03          	lh	s8,0(t2)
+   10234:	0180a823          	sw	s8,16(ra)
+   10238:	00001097          	auipc	ra,0x1
+   1023c:	15c08093          	addi	ra,ra,348 # 11394 <test_6_res>
+   10240:	00001317          	auipc	t1,0x1
+   10244:	0d830313          	addi	t1,t1,216 # 11318 <test_data>
+   10248:	ffe31c83          	lh	s9,-2(t1)
+   1024c:	0190a023          	sw	s9,0(ra)
+   10250:	00001297          	auipc	t0,0x1
+   10254:	0c828293          	addi	t0,t0,200 # 11318 <test_data>
+   10258:	00229d03          	lh	s10,2(t0)
+   1025c:	01a0a223          	sw	s10,4(ra)
+   10260:	00001217          	auipc	tp,0x1
+   10264:	0b820213          	addi	tp,tp,184 # 11318 <test_data>
+   10268:	ffc21d83          	lh	s11,-4(tp) # fffffffc <__global_pointer$+0xfffee4fc>
+   1026c:	01b0a423          	sw	s11,8(ra)
+   10270:	00001197          	auipc	gp,0x1
+   10274:	0a818193          	addi	gp,gp,168 # 11318 <test_data>
+   10278:	00219e03          	lh	t3,2(gp) # 11b02 <__global_pointer$+0x2>
+   1027c:	01c0a623          	sw	t3,12(ra)
+   10280:	00001117          	auipc	sp,0x1
+   10284:	09810113          	addi	sp,sp,152 # 11318 <test_data>
+   10288:	00411e83          	lh	t4,4(sp)
+   1028c:	01d0a823          	sw	t4,16(ra)
+   10290:	00001117          	auipc	sp,0x1
+   10294:	11810113          	addi	sp,sp,280 # 113a8 <test_7_res>
+   10298:	00001097          	auipc	ra,0x1
+   1029c:	08008093          	addi	ra,ra,128 # 11318 <test_data>
+   102a0:	00009f03          	lh	t5,0(ra)
+   102a4:	01e12023          	sw	t5,0(sp)
+   102a8:	00001097          	auipc	ra,0x1
+   102ac:	07008093          	addi	ra,ra,112 # 11318 <test_data>
+   102b0:	00009f83          	lh	t6,0(ra)
+   102b4:	01f12223          	sw	t6,4(sp)
+   102b8:	00100513          	li	a0,1
+   102bc:	00000073          	ecall
+
+000102c0 <end_testcode>:
+   102c0:	00000073          	ecall

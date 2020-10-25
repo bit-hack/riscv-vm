@@ -1,0 +1,123 @@
+
+elf/I-LUI-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011200 l    d  .data	00000000 .data
+00011500 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\cc2pdLpe.o
+00011200 l       .data	00000000 test_1_res
+00011214 l       .data	00000000 test_2_res
+00011228 l       .data	00000000 test_3_res
+0001123c l       .data	00000000 test_4_res
+00011250 l       .data	00000000 test_5_res
+00011264 l       .data	00000000 test_6_res
+00011278 l       .data	00000000 test_7_res
+000101c0 l       .text	00000000 end_testcode
+00011a00 g       *ABS*	00000000 __global_pointer$
+00011290 g       .data	00000000 end_signature
+00011608 g       .tohost	00000000 __SDATA_BEGIN__
+00011300 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011200 g       .data	00000000 begin_signature
+00011608 g       .tohost	00000000 __BSS_END__
+00011400 g       .data	00000000 end_regstate
+00011608 g       .tohost	00000000 __bss_start
+00011200 g       .data	00000000 __DATA_BEGIN__
+00011608 g       .tohost	00000000 _edata
+00011608 g       .tohost	00000000 _end
+00011600 g       .tohost	00000000 fromhost
+00011500 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001297          	auipc	t0,0x1
+   10084:	18028293          	addi	t0,t0,384 # 11200 <__DATA_BEGIN__>
+   10088:	00000037          	lui	zero,0x0
+   1008c:	0002a023          	sw	zero,0(t0)
+   10090:	000000b7          	lui	ra,0x0
+   10094:	0012a223          	sw	ra,4(t0)
+   10098:	007ff137          	lui	sp,0x7ff
+   1009c:	0022a423          	sw	sp,8(t0)
+   100a0:	000011b7          	lui	gp,0x1
+   100a4:	0032a623          	sw	gp,12(t0)
+   100a8:	01234237          	lui	tp,0x1234
+   100ac:	0042a823          	sw	tp,16(t0)
+   100b0:	00001097          	auipc	ra,0x1
+   100b4:	16408093          	addi	ra,ra,356 # 11214 <test_2_res>
+   100b8:	800002b7          	lui	t0,0x80000
+   100bc:	0050a023          	sw	t0,0(ra)
+   100c0:	01234337          	lui	t1,0x1234
+   100c4:	0060a223          	sw	t1,4(ra)
+   100c8:	fffff3b7          	lui	t2,0xfffff
+   100cc:	0070a423          	sw	t2,8(ra)
+   100d0:	00001437          	lui	s0,0x1
+   100d4:	0080a623          	sw	s0,12(ra)
+   100d8:	7ffff4b7          	lui	s1,0x7ffff
+   100dc:	0090a823          	sw	s1,16(ra)
+   100e0:	00001097          	auipc	ra,0x1
+   100e4:	14808093          	addi	ra,ra,328 # 11228 <test_3_res>
+   100e8:	54321537          	lui	a0,0x54321
+   100ec:	00a0a023          	sw	a0,0(ra)
+   100f0:	008005b7          	lui	a1,0x800
+   100f4:	00b0a223          	sw	a1,4(ra)
+   100f8:	00000637          	lui	a2,0x0
+   100fc:	00c0a423          	sw	a2,8(ra)
+   10100:	007ff6b7          	lui	a3,0x7ff
+   10104:	00d0a623          	sw	a3,12(ra)
+   10108:	00000737          	lui	a4,0x0
+   1010c:	00e0a823          	sw	a4,16(ra)
+   10110:	00001117          	auipc	sp,0x1
+   10114:	12c10113          	addi	sp,sp,300 # 1123c <test_4_res>
+   10118:	000017b7          	lui	a5,0x1
+   1011c:	00f12023          	sw	a5,0(sp)
+   10120:	00000837          	lui	a6,0x0
+   10124:	01012223          	sw	a6,4(sp)
+   10128:	000008b7          	lui	a7,0x0
+   1012c:	01112423          	sw	a7,8(sp)
+   10130:	007ff937          	lui	s2,0x7ff
+   10134:	01212623          	sw	s2,12(sp)
+   10138:	000019b7          	lui	s3,0x1
+   1013c:	01312823          	sw	s3,16(sp)
+   10140:	00001097          	auipc	ra,0x1
+   10144:	11008093          	addi	ra,ra,272 # 11250 <test_5_res>
+   10148:	01234a37          	lui	s4,0x1234
+   1014c:	0140a023          	sw	s4,0(ra)
+   10150:	80000ab7          	lui	s5,0x80000
+   10154:	0150a223          	sw	s5,4(ra)
+   10158:	01234b37          	lui	s6,0x1234
+   1015c:	0160a423          	sw	s6,8(ra)
+   10160:	fffffbb7          	lui	s7,0xfffff
+   10164:	0170a623          	sw	s7,12(ra)
+   10168:	00001c37          	lui	s8,0x1
+   1016c:	0180a823          	sw	s8,16(ra)
+   10170:	00001097          	auipc	ra,0x1
+   10174:	0f408093          	addi	ra,ra,244 # 11264 <test_6_res>
+   10178:	7ffffcb7          	lui	s9,0x7ffff
+   1017c:	0190a023          	sw	s9,0(ra)
+   10180:	54321d37          	lui	s10,0x54321
+   10184:	01a0a223          	sw	s10,4(ra)
+   10188:	00800db7          	lui	s11,0x800
+   1018c:	01b0a423          	sw	s11,8(ra)
+   10190:	00000e37          	lui	t3,0x0
+   10194:	01c0a623          	sw	t3,12(ra)
+   10198:	007ffeb7          	lui	t4,0x7ff
+   1019c:	01d0a823          	sw	t4,16(ra)
+   101a0:	00001117          	auipc	sp,0x1
+   101a4:	0d810113          	addi	sp,sp,216 # 11278 <test_7_res>
+   101a8:	00000f37          	lui	t5,0x0
+   101ac:	01e12023          	sw	t5,0(sp)
+   101b0:	00001fb7          	lui	t6,0x1
+   101b4:	01f12223          	sw	t6,4(sp)
+   101b8:	00100513          	li	a0,1
+   101bc:	00000073          	ecall
+
+000101c0 <end_testcode>:
+   101c0:	00000073          	ecall

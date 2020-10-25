@@ -1,0 +1,60 @@
+
+elf/I-ENDIANESS-01.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00010074 l    d  .text	00000000 .text
+00011100 l    d  .data	00000000 .data
+00011400 l    d  .tohost	00000000 .tohost
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 l    df *ABS*	00000000 C:\Users\Aidan\AppData\Local\Temp\cc8ZDxA1.o
+00011104 l       .data	00000000 test_A_data
+00011110 l       .data	00000000 test_A_res
+000100d8 l       .text	00000000 end_testcode
+00011900 g       *ABS*	00000000 __global_pointer$
+00011130 g       .data	00000000 end_signature
+00011508 g       .tohost	00000000 __SDATA_BEGIN__
+00011200 g       .data	00000000 begin_regstate
+00010074 g       .text	00000000 userstart
+00011110 g       .data	00000000 begin_signature
+00011508 g       .tohost	00000000 __BSS_END__
+00011300 g       .data	00000000 end_regstate
+00011508 g       .tohost	00000000 __bss_start
+00011100 g       .data	00000000 __DATA_BEGIN__
+00011508 g       .tohost	00000000 _edata
+00011508 g       .tohost	00000000 _end
+00011500 g       .tohost	00000000 fromhost
+00011400 g       .tohost	00000000 tohost
+
+
+
+Disassembly of section .text:
+
+00010074 <userstart>:
+   10074:	00002537          	lui	a0,0x2
+   10078:	80050513          	addi	a0,a0,-2048 # 1800 <userstart-0xe874>
+   1007c:	30052073          	csrs	mstatus,a0
+   10080:	00001817          	auipc	a6,0x1
+   10084:	08480813          	addi	a6,a6,132 # 11104 <test_A_data>
+   10088:	00001897          	auipc	a7,0x1
+   1008c:	08888893          	addi	a7,a7,136 # 11110 <begin_signature>
+   10090:	00082083          	lw	ra,0(a6)
+   10094:	00085103          	lhu	sp,0(a6)
+   10098:	00285183          	lhu	gp,2(a6)
+   1009c:	fff84203          	lbu	tp,-1(a6)
+   100a0:	00084283          	lbu	t0,0(a6)
+   100a4:	00184303          	lbu	t1,1(a6)
+   100a8:	00284383          	lbu	t2,2(a6)
+   100ac:	00384403          	lbu	s0,3(a6)
+   100b0:	0018a023          	sw	ra,0(a7)
+   100b4:	0028a223          	sw	sp,4(a7)
+   100b8:	0038a423          	sw	gp,8(a7)
+   100bc:	0048a623          	sw	tp,12(a7)
+   100c0:	0058a823          	sw	t0,16(a7)
+   100c4:	0068aa23          	sw	t1,20(a7)
+   100c8:	0078ac23          	sw	t2,24(a7)
+   100cc:	0088ae23          	sw	s0,28(a7)
+   100d0:	00100513          	li	a0,1
+   100d4:	00000073          	ecall
+
+000100d8 <end_testcode>:
+   100d8:	00000073          	ecall
