@@ -219,46 +219,106 @@ static bool emulate(riscv_t &rv, const rv_inst_t &i) {
   // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
   // RV32F
   case rv_inst_flw:
+    {
+      const uint32_t data = rv.io.mem_read_w(&rv, rv.X[i.rs1] + i.imm);
+      memcpy(rv.F + i.rd, &data, 4);
+    }
     break;
   case rv_inst_fsw:
+    {
+      uint32_t data;
+      memcpy(&data, (const void*)(rv.F + i.rs2), 4);
+      rv.io.mem_write_w(&rv, rv.X[i.rs1] + i.imm, data);
+    }
     break;
   case rv_inst_fmadds:
+    rv.F[i.rd] = rv.F[i.rs1] * rv.F[i.rs2] + rv.F[i.rs3];
     break;
   case rv_inst_fmsubs:
+    rv.F[i.rd] = rv.F[i.rs1] * rv.F[i.rs2] - rv.F[i.rs3];
     break;
   case rv_inst_fnmsubs:
+    rv.F[i.rd] = rv.F[i.rs3] - (rv.F[i.rs1] * rv.F[i.rs2]);
     break;
   case rv_inst_fnmadds:
+    rv.F[i.rd] = -(rv.F[i.rs1] * rv.F[i.rs2]) - rv.F[i.rs3];
     break;
   case rv_inst_fadds:
+    rv.F[i.rd] = rv.F[i.rs1] + rv.F[i.rs2];
     break;
   case rv_inst_fsubs:
+    rv.F[i.rd] = rv.F[i.rs1] - rv.F[i.rs2];
     break;
   case rv_inst_fmuls:
+    rv.F[i.rd] = rv.F[i.rs1] * rv.F[i.rs2];
     break;
   case rv_inst_fdivs:
+    rv.F[i.rd] = rv.F[i.rs1] / rv.F[i.rs2];
     break;
   case rv_inst_fsqrts:
+    rv.F[i.rd] = sqrtf(rv.F[i.rs1]);
     break;
   case rv_inst_fsgnjs:
+    {
+      uint32_t f1, f2, res;
+      memcpy(&f1, rv.F + i.rs1, 4);
+      memcpy(&f2, rv.F + i.rs2, 4);
+      res = (f1 & ~FMASK_SIGN) | (f2 & FMASK_SIGN);
+      memcpy(rv.F + i.rd, &res, 4);
+    }
+    break;
   case rv_inst_fsgnjns:
+    {
+      uint32_t f1, f2, res;
+      memcpy(&f1, rv.F + i.rs1, 4);
+      memcpy(&f2, rv.F + i.rs2, 4);
+      res = (f1 & ~FMASK_SIGN) | (~f2 & FMASK_SIGN);
+      memcpy(rv.F + i.rd, &res, 4);
+    }
+    break;
   case rv_inst_fsgnjxs:
+    {
+      uint32_t f1, f2, res;
+      memcpy(&f1, rv.F + i.rs1, 4);
+      memcpy(&f2, rv.F + i.rs2, 4);
+      res = f1 ^ (f2 & FMASK_SIGN);
+      memcpy(rv.F + i.rd, &res, 4);
+    }
+    break;
   case rv_inst_fmins:
+    rv.F[i.rd] = fminf(rv.F[i.rs1], rv.F[i.rs2]);
+    break;
   case rv_inst_fmaxs:
+    rv.F[i.rd] = fmaxf(rv.F[i.rs1], rv.F[i.rs2]);
+    break;
   case rv_inst_feqs:
+    rv.X[i.rd] = (rv.F[i.rs1] == rv.F[i.rs2]) ? 1 : 0;
+    break;
   case rv_inst_flts:
+    rv.X[i.rd] = (rv.F[i.rs1] < rv.F[i.rs2]) ? 1 : 0;
+    break;
   case rv_inst_fles:
+    rv.X[i.rd] = (rv.F[i.rs1] <= rv.F[i.rs2]) ? 1 : 0;
+    break;
   case rv_inst_fclasss:
     break;
   case rv_inst_fmvxw:
+    memcpy(rv.X + i.rd, rv.F + i.rs1, 4);
     break;
   case rv_inst_fcvtws:
+    rv.X[i.rd] = (int32_t)rv.F[i.rs1];
+    break;
   case rv_inst_fcvtwus:
+    rv.X[i.rd] = (uint32_t)rv.F[i.rs1];
     break;
   case rv_inst_fcvtsw:
+    rv.F[i.rd] = (float)(int32_t)rv.X[i.rs1];
+    break;
   case rv_inst_fcvtswu:
+    rv.F[i.rd] = (float)(uint32_t)rv.X[i.rs1];
     break;
   case rv_inst_fmvwx:
+    memcpy(rv.F + i.rd, rv.X + i.rs1, 4);
     break;
 
   // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
