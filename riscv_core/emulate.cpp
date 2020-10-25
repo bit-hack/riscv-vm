@@ -301,6 +301,11 @@ static bool emulate(riscv_t &rv, const rv_inst_t &i) {
     rv.X[i.rd] = (rv.F[i.rs1] <= rv.F[i.rs2]) ? 1 : 0;
     break;
   case rv_inst_fclasss:
+    {
+      uint32_t bits;
+      memcpy(&bits, rv.F + i.rs1, 4);
+      rv.X[i.rd] = calc_fclass(bits);
+    }
     break;
   case rv_inst_fmvxw:
     memcpy(rv.X + i.rd, rv.F + i.rs1, 4);
