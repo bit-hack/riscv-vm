@@ -1,7 +1,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
-
+#include "alloca.h"
 #include "../riscv_core/riscv.h"
 #include "state.h"
 
